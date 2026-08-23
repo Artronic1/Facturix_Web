@@ -7,6 +7,12 @@
     <meta name="theme-color" content="#4338ca" />
     <title>@ViewData["Title"] - Facturix Web</title>
     <link rel="icon" href="~/favicon.ico" type="image/x-icon" />
+    <link rel="manifest" href="~/manifest.json" />
+    <link rel="apple-touch-icon" href="~/img/icons/icon-512x512.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Facturix" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
@@ -16,6 +22,25 @@
     <link rel="stylesheet" href="~/FacturixWeb.styles.css" asp-append-version="true" />
 </head>
 <body class="facturix-shell">
+    <!-- PWA Install Banner -->
+    <div id="pwa-install-banner" class="d-none" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;background:linear-gradient(135deg,#4338ca,#6366f1);color:#fff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 -4px 20px rgba(0,0,0,.3);font-family:'Inter',sans-serif;">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <img src="~/img/icons/icon-512x512.png" alt="Facturix" style="width:40px;height:40px;border-radius:8px;" />
+            <div>
+                <strong>Instalar Facturix</strong>
+                <div style="font-size:0.82rem;opacity:.85;">Accede más rápido desde tu pantalla de inicio</div>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+            <button class="pwa-install-btn btn btn-light btn-sm fw-semibold" style="border-radius:8px;">
+                <i class="bi bi-download me-1"></i>Instalar
+            </button>
+            <button class="pwa-dismiss-btn btn btn-outline-light btn-sm" style="border-radius:8px;opacity:.8;">
+                Ahora no
+            </button>
+        </div>
+    </div>
+
     <header class="facturix-header">
         <nav class="navbar navbar-expand-lg">
             <div class="container-fluid px-4">
@@ -118,6 +143,48 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script>
+        // ─── PWA Service Worker Registration ───
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register('/facturix/sw.js', { scope: '/facturix/' })
+                    .then(function (reg) {
+                        console.log('[PWA] Service Worker registrado con éxito. Scope:', reg.scope);
+                        // Check for updates periodically
+                        setInterval(function () { reg.update(); }, 60 * 60 * 1000);
+                    })
+                    .catch(function (err) {
+                        console.warn('[PWA] Error registrando Service Worker:', err);
+                    });
+            });
+        }
+
+        // ─── PWA Install Prompt ───
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', function (e) {
+            e.preventDefault();
+            deferredPrompt = e;
+            // Show install banner
+            var banner = document.getElementById('pwa-install-banner');
+            if (banner) {
+                banner.classList.remove('d-none');
+                banner.querySelector('.pwa-install-btn').addEventListener('click', function () {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then(function (result) {
+                        if (result.outcome === 'accepted') {
+                            console.log('[PWA] App instalada');
+                        }
+                        deferredPrompt = null;
+                        banner.classList.add('d-none');
+                    });
+                });
+                banner.querySelector('.pwa-dismiss-btn').addEventListener('click', function () {
+                    banner.classList.add('d-none');
+                    sessionStorage.setItem('pwa-dismissed', '1');
+                });
+            }
+        });
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

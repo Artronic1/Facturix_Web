@@ -1,0 +1,77 @@
+{
+  "name": "Facturix Web",
+  "short_name": "Facturix",
+  "description": "Sistema POS integral: facturación, inventario, caja, cotizaciones, gastos, nómina y reportes.",
+  "start_url": "/facturix/",
+  "scope": "/facturix/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#4338ca",
+  "lang": "es",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "/facturix/img/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/facturix/img/icons/icon-512x512.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/facturix/img/icons/icon-512x512.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/facturix/img/icons/icon-512x512.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/facturix/img/icons/icon-512x512.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/facturix/img/icons/icon-512x512.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/facturix/img/icons/icon-512x512.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/facturix/img/icons/icon-512x512.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Punto de Venta",
+      "short_name": "Ventas",
+      "url": "/facturix/Sales",
+      "icons": []
+    },
+    {
+      "name": "Productos",
+      "short_name": "Productos",
+      "url": "/facturix/Products",
+      "icons": []
+    }
+  ]
+}
