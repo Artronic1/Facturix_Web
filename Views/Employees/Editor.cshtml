@@ -1,0 +1,47 @@
+@model EmployeeEditorViewModel
+@{
+    ViewData["Title"] = Model.Id is null ? "Nuevo empleado" : "Editar empleado";
+}
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="form-panel">
+            <h1 class="section-title">@(Model.Id is null ? "Nuevo empleado" : "Editar empleado")</h1>
+            <form asp-action="Save" method="post">
+                @Html.AntiForgeryToken()
+                <input asp-for="Id" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                <div class="mb-3">
+                    <label asp-for="Nombre" class="form-label"></label>
+                    <input asp-for="Nombre" class="form-control" />
+                </div>
+                <div class="mb-3">
+                    <label asp-for="Cargo" class="form-label"></label>
+                    <input asp-for="Cargo" class="form-control" />
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label asp-for="Salario" class="form-label"></label>
+                        <input asp-for="Salario" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="FechaIngreso" class="form-label"></label>
+                        <input asp-for="FechaIngreso" class="form-control" />
+                    </div>
+                </div>
+                <div class="form-check mt-3 mb-4">
+                    <input asp-for="Activo" class="form-check-input" />
+                    <label asp-for="Activo" class="form-check-label"></label>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary">Guardar</button>
+                    <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

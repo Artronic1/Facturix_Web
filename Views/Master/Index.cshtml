@@ -1,0 +1,247 @@
+@model IEnumerable<FacturixWeb.Controllers.EmpresaViewModel>
+@{
+    ViewData["Title"] = "Panel Maestro SaaS";
+    Layout = "_Layout";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 fw-bold">Panel Maestro</h1>
+        <p class="text-muted">Gestión global de empresas y bases de datos inquilinas.</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newTenantModal">
+        <i class="bi bi-plus-circle me-1"></i> Nueva Empresa
+    </button>
+</div>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">ID</th>
+                        <th>Nombre de Empresa</th>
+                        <th>Archivo BD</th>
+                        <th>Fecha Registro</th>
+                        <th>Estado</th>
+                        <th class="text-end pe-4">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var emp in Model)
+                    {
+                        <tr>
+                            <td class="ps-4 text-muted">#@emp.Id</td>
+                            <td class="fw-bold text-light">
+                                @emp.Nombre
+                                <div class="small fw-normal text-muted mt-1"><i class="bi bi-person me-1"></i>@emp.AdminUser</div>
+                            </td>
+                            <td><span class="badge bg-secondary">@emp.DbFileName</span></td>
+                            <td>@emp.FechaRegistro</td>
+                            <td>
+                                @if (emp.Activa == 1)
+                                {
+                                    <span class="badge bg-success">Activa</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Inactiva</span>
+                                }
+                            </td>
+                            <td class="text-end pe-4">
+                                <div class="d-flex justify-content-end gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="abrirEditarModal(@emp.Id, '@emp.Nombre', '@emp.AdminUser', '@emp.Rnc', '@emp.Telefono', '@emp.Direccion')" title="Editar Empresa y Usuarios">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <form asp-action="AlternarEstado" method="post" class="m-0">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@emp.Id" />
+                                        <button type="submit" class="btn btn-sm @(emp.Activa == 1 ? "btn-outline-warning" : "btn-outline-success")" title="@(emp.Activa == 1 ? "Deshabilitar Acceso" : "Habilitar Acceso")">
+                                            <i class="bi @(emp.Activa == 1 ? "bi-pause-circle" : "bi-play-circle")"></i>
+                                        </button>
+                                    </form>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="abrirEliminarModal(@emp.Id, '@emp.Nombre')" title="Eliminar Empresa">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-muted">No hay empresas registradas aún.</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nueva Empresa -->
+<div class="modal fade" id="newTenantModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="CrearEmpresa" method="post">
+                @Html.AntiForgeryToken()
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold">Registrar Nueva Empresa</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-4">Se creará un nuevo archivo SQLite aislado para esta empresa y un usuario administrador para que puedan acceder.</p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Nombre de la Empresa</label>
+                        <input type="text" name="nombreEmpresa" class="form-control" required placeholder="Ej. Abarrotes Don Julio" />
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">RNC / Cédula (Opcional)</label>
+                            <input type="text" name="rnc" class="form-control" placeholder="Ej. 130-44555-1" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Teléfono (Opcional)</label>
+                            <input type="text" name="telefono" class="form-control" placeholder="Ej. 809-555-0000" />
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Dirección (Opcional)</label>
+                        <input type="text" name="direccion" class="form-control" placeholder="Ubicación física del negocio" />
+                    </div>
+                    
+                    <hr class="my-4" />
+                    <h6 class="fw-bold mb-3">Credenciales del Administrador</h6>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Nombre de Usuario (Único Global)</label>
+                        <input type="text" name="adminUser" class="form-control" required placeholder="Ej. admin_donjulio" />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Contraseña</label>
+                        <input type="password" name="adminPass" class="form-control" required />
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Crear Empresa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Empresa -->
+<div class="modal fade" id="editTenantModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="EditarEmpresa" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" id="editEmpresaId" />
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold">Editar Nombre de Empresa</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre de la Empresa</label>
+                        <input type="text" name="nuevoNombre" id="editEmpresaNombre" class="form-control" required />
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">RNC / Cédula</label>
+                            <input type="text" name="rnc" id="editEmpresaRnc" class="form-control" placeholder="Ej. 130-44555-1" />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Teléfono</label>
+                            <input type="text" name="telefono" id="editEmpresaTelefono" class="form-control" placeholder="Ej. 809-555-0000" />
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Dirección</label>
+                        <input type="text" name="direccion" id="editEmpresaDireccion" class="form-control" placeholder="Ubicación física del negocio" />
+                    </div>
+
+                    <hr class="my-4" />
+                    <h6 class="fw-bold mb-3">Credenciales del Administrador</h6>
+                    <input type="hidden" name="oldAdminUser" id="editOldAdminUser" />
+                    <div class="mb-3">
+                        <label class="form-label">Usuario Administrador</label>
+                        <input type="text" name="newAdminUser" id="editAdminUser" class="form-control" required />
+                        <div class="form-text">Si cambia este usuario, asegúrese de que el nuevo nombre no esté en uso.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nueva Contraseña</label>
+                        <input type="password" name="newPassword" class="form-control" placeholder="Dejar en blanco para no cambiar" />
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Eliminar Empresa -->
+<div class="modal fade" id="deleteTenantModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-danger">
+            <form asp-action="EliminarEmpresa" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" id="deleteEmpresaId" />
+                <div class="modal-header border-0 pb-0 bg-danger text-white">
+                    <h5 class="modal-title fw-bold">Eliminar Empresa</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body pt-4">
+                    <p class="mb-1 text-danger fw-bold">¡Atención! Esta acción es irreversible.</p>
+                    <p>Está a punto de eliminar por completo la empresa <strong id="deleteEmpresaNombre"></strong>.</p>
+                    <p class="text-muted small">Esto borrará permanentemente todos sus usuarios, productos, ventas y el archivo de base de datos completo del servidor. No hay forma de deshacer esta acción.</p>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Sí, Eliminar Permanentemente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function abrirEditarModal(id, nombre, adminUser, rnc, telefono, direccion) {
+            document.getElementById('editEmpresaId').value = id;
+            document.getElementById('editEmpresaNombre').value = nombre;
+            document.getElementById('editOldAdminUser').value = adminUser;
+            document.getElementById('editAdminUser').value = adminUser;
+            document.getElementById('editEmpresaRnc').value = rnc || '';
+            document.getElementById('editEmpresaTelefono').value = telefono || '';
+            document.getElementById('editEmpresaDireccion').value = direccion || '';
+            new bootstrap.Modal(document.getElementById('editTenantModal')).show();
+        }
+
+        function abrirEliminarModal(id, nombre) {
+            document.getElementById('deleteEmpresaId').value = id;
+            document.getElementById('deleteEmpresaNombre').textContent = nombre;
+            new bootstrap.Modal(document.getElementById('deleteTenantModal')).show();
+        }
+    </script>
+}

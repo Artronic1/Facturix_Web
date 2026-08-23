@@ -1,0 +1,9 @@
+/* ──────────────────────────────────────────────────────
+   Facturix Web — Layout Scoped Styles (minimal)
+   Only layout-specific overrides that don't conflict
+   with the main design system in site.css
+   ────────────────────────────────────────────────────── */
+
+a.navbar-brand {
+  white-space: normal;
+}

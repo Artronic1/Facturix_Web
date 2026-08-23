@@ -1,0 +1,102 @@
+@using InventarioProVisual.Models
+@model Caja
+
+@{
+    ViewData["Title"] = "Caja";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0 text-gray-800"><i class="bi bi-wallet2 text-primary me-2"></i>Módulo de Caja</h1>
+    <a asp-action="History" class="btn btn-outline-secondary">
+        <i class="bi bi-clock-history me-1"></i>Historial de Cajas
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-lg-6 mx-auto">
+        @if (Model == null)
+        {
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                <div class="card-header bg-primary text-white p-4">
+                    <h5 class="mb-0"><i class="bi bi-door-open me-2"></i>Aperturar Nueva Caja</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <div class="display-1 text-muted opacity-25"><i class="bi bi-wallet2"></i></div>
+                        <p class="text-muted">No hay ninguna caja abierta actualmente.</p>
+                    </div>
+                    <form asp-action="OpenCash" method="post">
+                        <div class="mb-3">
+                            <label class="form-label text-muted small text-uppercase fw-bold">Monto Inicial (Efectivo en caja)</label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text bg-light border-0">RD$</span>
+                                <input type="number" name="initialAmount" class="form-control border-0 bg-light" step="0.01" min="0" required value="0">
+                            </div>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg rounded-3">
+                                <i class="bi bi-check-circle me-1"></i>Abrir Caja
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden border-top border-warning border-4">
+                <div class="card-body p-4 text-center">
+                    <div class="badge bg-warning text-dark px-3 py-2 rounded-pill mb-3">
+                        <i class="bi bi-unlock-fill me-1"></i>Caja Abierta
+                    </div>
+                    <h3 class="mb-1 text-primary">Caja #@Model.Id</h3>
+                    <p class="text-muted small mb-4">Abierta el @Model.Apertura</p>
+
+                    <div class="row g-3 mb-4 text-start">
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded-3">
+                                <div class="text-muted small mb-1">Fondo Inicial</div>
+                                <div class="h5 mb-0 text-dark">RD$ @Model.SaldoInicial.ToString("N2")</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded-3">
+                                <div class="text-muted small mb-1">Ventas (Efec.)</div>
+                                <div class="h5 mb-0 text-success">+ RD$ @ViewBag.VentasEfectivo?.ToString("N2")</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded-3">
+                                <div class="text-muted small mb-1">Otros Ingresos</div>
+                                <div class="h5 mb-0 text-success">+ RD$ @ViewBag.IngresosExtra?.ToString("N2")</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-primary bg-opacity-10 rounded-3 border border-primary border-opacity-25">
+                                <div class="text-primary small fw-bold mb-1">Total Esperado</div>
+                                <div class="h5 mb-0 text-primary fw-bold">RD$ @ViewBag.TotalEsperado?.ToString("N2")</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form asp-action="CloseCash" method="post" class="mt-4 border-top pt-4">
+                        <h5 class="text-muted mb-3">Proceso de Cuadre</h5>
+                        <div class="mb-3 text-start">
+                            <label class="form-label text-muted small text-uppercase fw-bold">Efectivo Físico Contado</label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text bg-light border-0">RD$</span>
+                                <input type="number" name="physicalAmount" class="form-control border-0 bg-light font-monospace fw-bold text-primary" step="0.01" min="0" required value="@ViewBag.TotalEsperado">
+                            </div>
+                            <div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Ingrese el monto real que tiene en la gaveta.</div>
+                        </div>
+                        <div class="d-grid mt-4">
+                            <button type="submit" class="btn btn-warning btn-lg rounded-3 fw-bold" onclick="return confirm('¿Está seguro que desea cerrar la caja con este monto físico?');">
+                                <i class="bi bi-lock-fill me-1"></i>Cerrar Caja
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        }
+    </div>
+</div>

@@ -1,0 +1,72 @@
+@model QuoteIndexViewModel
+@{
+    ViewData["Title"] = "Cotizaciones";
+}
+
+<div class="d-flex justify-content-between align-items-end mb-4">
+    <div>
+        <h1 class="section-title">Cotizaciones</h1>
+        <p class="section-subtitle">Consulta, impresión y carga de cotizaciones al carrito de ventas.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Create" class="btn btn-warning"><i class="bi bi-plus-lg"></i> Nueva Cotización</a>
+        <a asp-controller="Sales" asp-action="Index" class="btn btn-primary">Ir a Ventas</a>
+    </div>
+</div>
+
+<div class="card page-card">
+    <div class="card-body">
+        <form method="get" class="row g-3 mb-4">
+            <div class="col-md-5">
+                <input name="search" value="@Model.Search" class="form-control" placeholder="Buscar por cliente..." />
+            </div>
+            <div class="col-md-3">
+                <select name="estado" class="form-select">
+                    @foreach (var estado in new[] { "Todos", "Pendiente", "Facturada", "Vencida" })
+                    {
+                        <option value="@estado" selected="@(estado == Model.Estado)">@estado</option>
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-secondary">Filtrar</button>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Cliente</th>
+                        <th>Fecha</th>
+                        <th>Vence</th>
+                        <th>Estado</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <td>#@item.Id</td>
+                        <td class="fw-semibold">@item.Cliente</td>
+                        <td>@item.Fecha.ToString("dd/MM/yyyy")</td>
+                        <td>@item.FechaVencimiento.ToString("dd/MM/yyyy")</td>
+                        <td>@item.Estado</td>
+                        <td class="text-end">RD$ @item.Total.ToString("N2")</td>
+                        <td class="text-end">
+                            <div class="d-flex gap-2 justify-content-end flex-wrap">
+                                <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-secondary">Detalle</a>
+                                <a asp-action="Pdf" asp-route-id="@item.Id" class="btn btn-sm btn-primary">PDF</a>
+                                <a asp-action="LoadToCart" asp-route-id="@item.Id" class="btn btn-sm btn-warning">Cargar</a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

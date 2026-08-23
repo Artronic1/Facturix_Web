@@ -1,0 +1,57 @@
+@model QuoteDetailsPageViewModel
+@{
+    ViewData["Title"] = $"Cotización #{Model.Cotizacion.Id}";
+}
+
+<div class="d-flex justify-content-between align-items-end mb-4">
+    <div>
+        <h1 class="section-title">Cotización #@Model.Cotizacion.Id</h1>
+        <p class="section-subtitle">@Model.Cotizacion.Cliente · Estado: @Model.Cotizacion.Estado</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Pdf" asp-route-id="@Model.Cotizacion.Id" class="btn btn-primary">Descargar PDF</a>
+        <a asp-action="LoadToCart" asp-route-id="@Model.Cotizacion.Id" class="btn btn-warning">Cargar al carrito</a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="form-panel">
+            <div class="mb-2"><strong>Cliente:</strong> @Model.Cotizacion.Cliente</div>
+            <div class="mb-2"><strong>Fecha:</strong> @Model.Cotizacion.Fecha.ToString("dd/MM/yyyy")</div>
+            <div class="mb-2"><strong>Vencimiento:</strong> @Model.Cotizacion.FechaVencimiento.ToString("dd/MM/yyyy")</div>
+            <div class="mb-2"><strong>Descuento:</strong> RD$ @Model.Cotizacion.DescuentoMonto.ToString("N2")</div>
+            <div><strong>Total:</strong> RD$ @Model.Cotizacion.Total.ToString("N2")</div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card page-card">
+            <div class="card-header">Detalle</div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th class="text-end">Cantidad</th>
+                                <th class="text-end">Precio</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var item in Model.Detalles)
+                        {
+                            <tr>
+                                <td>@item.NombreProducto</td>
+                                <td class="text-end">@item.Cantidad</td>
+                                <td class="text-end">RD$ @item.PrecioUnitario.ToString("N2")</td>
+                                <td class="text-end">RD$ @((item.Cantidad * item.PrecioUnitario).ToString("N2"))</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

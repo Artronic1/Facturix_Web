@@ -1,0 +1,95 @@
+@model EmployeeIndexViewModel
+@{
+    ViewData["Title"] = "Nómina";
+}
+
+<div class="d-flex justify-content-between align-items-end mb-4">
+    <div>
+        <h1 class="section-title">Empleados y nómina</h1>
+        <p class="section-subtitle">Gestione personal, salarios y pagos de nómina.</p>
+    </div>
+    <a asp-action="Create" class="btn btn-primary">Nuevo empleado</a>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-8">
+        <div class="card page-card">
+            <div class="card-header">Listado de empleados</div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Empleado</th>
+                                <th>Cargo</th>
+                                <th>Ingreso</th>
+                                <th class="text-end">Salario</th>
+                                <th>Estado</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var item in Model.Items)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@item.Nombre</td>
+                                <td>@item.Cargo</td>
+                                <td>@item.FechaIngreso.ToString("dd/MM/yyyy")</td>
+                                <td class="text-end">RD$ @item.Salario.ToString("N2")</td>
+                                <td>@(item.Activo ? "Activo" : "Inactivo")</td>
+                                <td class="text-end">
+                                    <div class="d-flex gap-2 justify-content-end">
+                                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-warning">Editar</a>
+                                        <form asp-action="Delete" method="post" onsubmit="return confirm('¿Marcar este empleado como inactivo?');">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@item.Id" />
+                                            <button class="btn btn-sm btn-danger">Inactivar</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="form-panel mb-4">
+            <h2 class="h4 fw-bold">Pago individual</h2>
+            <form asp-action="Pay" method="post">
+                @Html.AntiForgeryToken()
+                <div class="mb-3">
+                    <label class="form-label">Empleado</label>
+                    <select name="EmpleadoId" class="form-select">
+                        @foreach (var employee in Model.Items.Where(x => x.Activo))
+                        {
+                            <option value="@employee.Id">@employee.Nombre (@employee.Cargo)</option>
+                        }
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Monto</label>
+                    <input name="Monto" class="form-control" value="0" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Periodo</label>
+                    <input name="Periodo" class="form-control" value="@DateTime.Now.ToString("MMMM yyyy")" />
+                </div>
+                <button class="btn btn-success w-100">Registrar pago</button>
+            </form>
+        </div>
+        <div class="form-panel">
+            <h2 class="h4 fw-bold">Nómina completa</h2>
+            <form asp-action="PayAll" method="post">
+                @Html.AntiForgeryToken()
+                <div class="mb-3">
+                    <label class="form-label">Periodo</label>
+                    <input name="periodo" class="form-control" value="@DateTime.Now.ToString("MMMM yyyy")" />
+                </div>
+                <button class="btn btn-primary w-100">Procesar nómina completa</button>
+            </form>
+        </div>
+    </div>
+</div>

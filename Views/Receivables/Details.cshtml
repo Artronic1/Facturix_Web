@@ -1,0 +1,130 @@
+@model FacturixWeb.ViewModels.ReceivableViewModel
+@{
+    ViewData["Title"] = "Detalle de Cuenta";
+    var facturas = ViewBag.Facturas as List<dynamic>;
+    var pagos = ViewBag.Pagos as List<dynamic>;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="section-title">Cuenta: @Model.ClienteNombre</h1>
+        <p class="section-subtitle">Tel: @Model.ClienteTelefono | Estado actual de cuenta por cobrar.</p>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary">Volver</a>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card kpi-card kpi-red p-4 h-100">
+            <div class="label text-white">Deuda Pendiente</div>
+            <div class="value text-white fs-1">RD$ @Model.DeudaTotal.ToString("N2")</div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card page-card h-100">
+            <div class="card-header">Registrar Abono</div>
+            <div class="card-body">
+                <form asp-action="Pay" method="post" class="row g-3">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="clienteId" value="@Model.ClienteId" />
+                    <div class="col-md-4">
+                        <label class="form-label">Monto a abonar</label>
+                        <input type="number" step="0.01" min="1" max="@Model.DeudaTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)" name="amount" class="form-control" required />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Método</label>
+                        <select name="method" class="form-select">
+                            <option value="EFECTIVO">Efectivo</option>
+                            <option value="TARJETA">Tarjeta</option>
+                            <option value="TRANSFERENCIA">Transferencia</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Referencia</label>
+                        <input type="text" name="reference" class="form-control" placeholder="Opcional" />
+                    </div>
+                    <div class="col-12 text-end mt-3">
+                        <button class="btn btn-success" @(Model.DeudaTotal <= 0 ? "disabled" : "")>Procesar Pago</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-6">
+        <div class="card page-card h-100">
+            <div class="card-header">Facturas Pendientes</div>
+            <div class="card-body">
+                @if (facturas == null || facturas.Count == 0)
+                {
+                    <p class="text-muted">No hay facturas pendientes.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th># Fac</th>
+                                    <th>Fecha</th>
+                                    <th class="text-end">Total</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var f in facturas)
+                            {
+                                <tr>
+                                    <td>@f.Id.ToString("000000")</td>
+                                    <td>@f.Fecha</td>
+                                    <td class="text-end">RD$ @f.Total.ToString("N2")</td>
+                                    <td><span class="badge @(f.Estado == "Pagada" ? "bg-success" : "bg-warning text-dark")">@f.Estado</span></td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="card page-card h-100">
+            <div class="card-header">Historial de Abonos</div>
+            <div class="card-body">
+                @if (pagos == null || pagos.Count == 0)
+                {
+                    <p class="text-muted">No se han registrado abonos.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Método</th>
+                                    <th>Ref</th>
+                                    <th class="text-end">Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var p in pagos)
+                            {
+                                <tr>
+                                    <td>@p.Fecha</td>
+                                    <td>@p.MetodoPago</td>
+                                    <td>@p.Referencia</td>
+                                    <td class="text-end text-success fw-bold">RD$ @p.Monto.ToString("N2")</td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

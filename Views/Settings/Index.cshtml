@@ -1,0 +1,95 @@
+@model SettingsViewModel
+@{
+    ViewData["Title"] = "Configuración";
+}
+
+<div class="mb-4">
+    <h1 class="section-title">Configuración del sistema</h1>
+    <p class="section-subtitle">Identidad del negocio, logo, backups y restauración de base de datos.</p>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-6">
+        <div class="form-panel h-100">
+            <h2 class="h4 fw-bold mb-3">Datos del negocio</h2>
+            <form asp-action="SaveBusinessData" method="post">
+                @Html.AntiForgeryToken()
+                <div class="mb-3">
+                    <label asp-for="NombreNegocio" class="form-label"></label>
+                    <input asp-for="NombreNegocio" class="form-control" />
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label asp-for="Rnc" class="form-label"></label>
+                        <input asp-for="Rnc" class="form-control" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="Telefono" class="form-label"></label>
+                        <input asp-for="Telefono" class="form-control" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
+                    </div>
+                </div>
+                <div class="mt-3 mb-3">
+                    <label asp-for="Direccion" class="form-label"></label>
+                    <input asp-for="Direccion" class="form-control" />
+                </div>
+                
+                <hr class="border-light opacity-25" />
+                <h4 class="h5 fw-bold mb-3 mt-4 text-warning">Facturación y Recibos</h4>
+                
+                <div class="mb-3">
+                    <label class="form-label">Secuencia Fiscal NCF (Opcional)</label>
+                    <input asp-for="SecuenciaNcf" class="form-control" placeholder="Ej: B0100000000" />
+                    <div class="form-text">Deje en blanco si no utiliza NCF.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Mensaje en Pie de Recibo</label>
+                    <input asp-for="MensajeRecibo" class="form-control" placeholder="Ej: ¡Gracias por su compra!" />
+                </div>
+                <div class="mb-4 form-check form-switch">
+                    <input class="form-check-input" type="checkbox" asp-for="UsarBranding" id="usarBrandingCheck">
+                    <label class="form-check-label" for="usarBrandingCheck">Usar Branding Personalizado (Logo y Mensaje en Recibo)</label>
+                </div>
+                <button class="btn btn-primary">Guardar datos</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="form-panel mb-4">
+            <h2 class="h4 fw-bold mb-3">Logo</h2>
+            <p class="text-muted">Estado actual: @(Model.HasLogo ? "Logo cargado" : "Sin logo cargado")</p>
+            <form asp-action="UploadLogo" method="post" enctype="multipart/form-data" class="d-flex gap-2 flex-wrap">
+                @Html.AntiForgeryToken()
+                <input type="file" name="logoFile" class="form-control" accept=".ico" />
+                <button class="btn btn-success">Subir logo</button>
+            </form>
+            <form asp-action="RemoveLogo" method="post" class="mt-3">
+                @Html.AntiForgeryToken()
+                <button class="btn btn-danger">Quitar logo</button>
+            </form>
+        </div>
+        <div class="form-panel">
+            <h2 class="h4 fw-bold mb-3">Backups</h2>
+            <form asp-action="SaveBackupFolder" method="post" class="mb-3">
+                @Html.AntiForgeryToken()
+                <label asp-for="BackupFolder" class="form-label"></label>
+                <input asp-for="BackupFolder" class="form-control mb-3" />
+                <button class="btn btn-primary">Guardar ruta</button>
+            </form>
+            <form asp-action="BackupNow" method="post" class="mb-3">
+                @Html.AntiForgeryToken()
+                <button class="btn btn-success">Generar backup ahora</button>
+            </form>
+            <form asp-action="RestoreDatabase" method="post" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+                <label class="form-label">Restaurar desde archivo .db</label>
+                <input type="file" name="backupFile" class="form-control mb-3" accept=".db" />
+                <button class="btn btn-danger">Restaurar base de datos</button>
+            </form>
+            <hr />
+            <div class="small text-muted">
+                <div>Base activa: @Model.DataPath</div>
+                <div>Carpeta backup resuelta: @Model.BackupPath</div>
+            </div>
+        </div>
+    </div>
+</div>

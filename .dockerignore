@@ -1,0 +1,30 @@
+# Ignorar carpetas de control de versiones e IDEs
+.git/
+.github/
+.vs/
+.vscode/
+.idea/
+
+# Ignorar archivos de compilación local
+**/bin/
+**/obj/
+**/out/
+
+# Ignorar bases de datos locales y copias de seguridad de pruebas
+**/*.db
+**/*.db-journal
+**/*.db-shm
+**/*.db-wal
+Backups/
+Temp/
+
+# Ignorar configuración de desarrollo local
+appsettings.Development.json
+
+# Ignorar archivos temporales y específicos de usuario
+*.user
+*.suo
+*.sln.docstates
+
+# Ignorar artefactos de la herramienta de IA (si existen)
+*.md

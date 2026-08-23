@@ -1,0 +1,55 @@
+@model LoginViewModel
+@{
+    Layout = null;
+    ViewData["Title"] = "Acceso";
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Inicie sesión en Facturix Web — Sistema POS integral." />
+    <meta name="theme-color" content="#4338ca" />
+    <title>Acceso - Facturix Web</title>
+    <link rel="icon" href="~/favicon.ico" type="image/x-icon" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body class="login-shell">
+    <div class="login-card">
+        <section class="login-brand-panel">
+            <img src="~/img/facturix-logo.png" alt="Facturix" class="brand-logo mb-4" style="width:72px;height:72px;" />
+            <h1>FACTURIX</h1>
+            <p class="lead mb-3">Sistema POS, inventario, caja, cotizaciones, gastos, nómina y reportes en una sola plataforma web.</p>
+            <p class="mb-0 opacity-75">Desarrollado para operar negocios con rapidez, control y trazabilidad.</p>
+        </section>
+        <section class="login-form-panel">
+            <h2 class="fw-bold mb-2">Iniciar sesión</h2>
+            <p class="text-muted mb-4">Entre con su usuario para acceder a Facturix Web.</p>
+
+            <form asp-action="Login" method="post">
+                @Html.AntiForgeryToken()
+                <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                <div class="mb-3">
+                    <label asp-for="UserName" class="form-label"></label>
+                    <input asp-for="UserName" class="form-control form-control-lg" autocomplete="username" autofocus />
+                    <span asp-validation-for="UserName" class="text-danger"></span>
+                </div>
+                <div class="mb-4">
+                    <label asp-for="Password" class="form-label"></label>
+                    <input asp-for="Password" class="form-control form-control-lg" autocomplete="current-password" />
+                    <span asp-validation-for="Password" class="text-danger"></span>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100">Entrar al sistema</button>
+            </form>
+        </section>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <partial name="_ValidationScriptsPartial" />
+</body>
+</html>

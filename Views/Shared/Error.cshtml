@@ -1,0 +1,18 @@
+@model ErrorViewModel
+@{
+    ViewData["Title"] = "Error";
+}
+
+<div class="page-card p-5 text-center">
+    <h1 class="section-title text-danger">Error inesperado</h1>
+    <p class="section-subtitle">Ha ocurrido un error al procesar su solicitud.</p>
+
+    @if (Model.ShowRequestId)
+    {
+        <p class="text-muted small">
+            <strong>Request ID:</strong> <code>@Model.RequestId</code>
+        </p>
+    }
+
+    <a asp-controller="Home" asp-action="Index" class="btn btn-primary mt-3">Volver al dashboard</a>
+</div>

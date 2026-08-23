@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Facturix Web — Sistema POS integral: facturación, inventario, caja, cotizaciones, gastos, nómina y reportes." />
+    <meta name="theme-color" content="#4338ca" />
+    <title>@ViewData["Title"] - Facturix Web</title>
+    <link rel="icon" href="~/favicon.ico" type="image/x-icon" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/FacturixWeb.styles.css" asp-append-version="true" />
+</head>
+<body class="facturix-shell">
+    <header class="facturix-header">
+        <nav class="navbar navbar-expand-lg">
+            <div class="container-fluid px-4">
+                <a class="navbar-brand d-flex align-items-center gap-2" asp-controller="Home" asp-action="Index">
+                    <img src="~/img/facturix-logo.png" alt="Facturix" class="brand-logo" />
+                    <span>Facturix Web</span>
+                </a>
+
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#facturixNav" aria-controls="facturixNav" aria-expanded="false" aria-label="Alternar navegación">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="facturixNav">
+                    @if (User.Identity?.IsAuthenticated == true)
+                    {
+                        var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+                        <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-lg-center gap-1">
+                            @if (User.IsInRole("SuperAdmin"))
+                            {
+                                <li class="nav-item"><a class="nav-link @(currentController == "Master" ? "active" : "")" asp-controller="Master" asp-action="Index"><i class="bi bi-hdd-network me-1"></i>Panel Maestro</a></li>
+                            }
+                            else
+                            {
+                                <li class="nav-item"><a class="nav-link @(currentController == "Home" ? "active" : "")" asp-controller="Home" asp-action="Index"><i class="bi bi-house me-1"></i>Dashboard</a></li>
+                                
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle @(new[] {"Sales", "Invoices", "Quotes", "CashRegister"}.Contains(currentController) ? "active" : "")" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-cart me-1"></i>Ventas
+                                    </a>
+                                    <ul class="dropdown-menu shadow-sm border-0">
+                                        <li><a class="dropdown-item @(currentController == "Sales" ? "active" : "")" asp-controller="Sales" asp-action="Index"><i class="bi bi-cart-check me-2 text-muted"></i>Punto de Venta</a></li>
+                                        <li><a class="dropdown-item @(currentController == "Invoices" ? "active" : "")" asp-controller="Invoices" asp-action="Index"><i class="bi bi-receipt me-2 text-muted"></i>Facturas Emitidas</a></li>
+                                        <li><a class="dropdown-item @(currentController == "Quotes" ? "active" : "")" asp-controller="Quotes" asp-action="Index"><i class="bi bi-file-earmark-text me-2 text-muted"></i>Cotizaciones</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item @(currentController == "CashRegister" ? "active" : "")" asp-controller="CashRegister" asp-action="Index"><i class="bi bi-wallet2 me-2 text-muted"></i>Cuadre de Caja</a></li>
+                                    </ul>
+                                </li>
+                                @if (User.IsInRole("Admin"))
+                                {
+                                    <li class="nav-item dropdown">
+                                        <a class="nav-link dropdown-toggle @(new[] {"Products", "Customers"}.Contains(currentController) ? "active" : "")" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <i class="bi bi-box-seam me-1"></i>Catálogos
+                                        </a>
+                                        <ul class="dropdown-menu shadow-sm border-0">
+                                            <li><a class="dropdown-item @(currentController == "Products" ? "active" : "")" asp-controller="Products" asp-action="Index"><i class="bi bi-tags me-2 text-muted"></i>Productos</a></li>
+                                            <li><a class="dropdown-item @(currentController == "Customers" ? "active" : "")" asp-controller="Customers" asp-action="Index"><i class="bi bi-people me-2 text-muted"></i>Clientes</a></li>
+                                        </ul>
+                                    </li>
+
+                                    <li class="nav-item dropdown">
+                                        <a class="nav-link dropdown-toggle @(new[] {"Receivables", "Expenses", "Employees"}.Contains(currentController) ? "active" : "")" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <i class="bi bi-wallet2 me-1"></i>Finanzas
+                                        </a>
+                                        <ul class="dropdown-menu shadow-sm border-0">
+                                            <li><a class="dropdown-item @(currentController == "Receivables" ? "active" : "")" asp-controller="Receivables" asp-action="Index"><i class="bi bi-cash-coin me-2 text-muted"></i>Cuentas por Cobrar</a></li>
+                                            <li><a class="dropdown-item @(currentController == "Expenses" ? "active" : "")" asp-controller="Expenses" asp-action="Index"><i class="bi bi-graph-down-arrow me-2 text-muted"></i>Gastos</a></li>
+                                            <li><a class="dropdown-item @(currentController == "Employees" ? "active" : "")" asp-controller="Employees" asp-action="Index"><i class="bi bi-person-badge me-2 text-muted"></i>Nómina</a></li>
+                                        </ul>
+                                    </li>
+
+                                    <li class="nav-item dropdown">
+                                        <a class="nav-link dropdown-toggle @(new[] {"Reports", "Users", "Audit", "Settings"}.Contains(currentController) ? "active" : "")" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <i class="bi bi-gear me-1"></i>Sistema
+                                        </a>
+                                        <ul class="dropdown-menu shadow-sm border-0">
+                                            <li><a class="dropdown-item @(currentController == "Reports" ? "active" : "")" asp-controller="Reports" asp-action="Index"><i class="bi bi-bar-chart-line me-2 text-muted"></i>Reportes</a></li>
+                                            <li><a class="dropdown-item @(currentController == "Users" ? "active" : "")" asp-controller="Users" asp-action="Index"><i class="bi bi-person-gear me-2 text-muted"></i>Usuarios</a></li>
+                                            <li><a class="dropdown-item @(currentController == "Audit" ? "active" : "")" asp-controller="Audit" asp-action="Index"><i class="bi bi-shield-check me-2 text-muted"></i>Auditoría</a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item @(currentController == "Settings" ? "active" : "")" asp-controller="Settings" asp-action="Index"><i class="bi bi-sliders me-2 text-muted"></i>Configuración</a></li>
+                                        </ul>
+                                    </li>
+                                }
+                            }
+                        </ul>
+
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="text-end small text-muted">
+                                <div class="fw-semibold">@(ViewBag.CurrentUserName ?? User.Identity?.Name)</div>
+                                <div>@(ViewBag.CurrentRole ?? string.Empty)</div>
+                            </div>
+                            <form asp-controller="Account" asp-action="Logout" method="post" class="m-0">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-outline-danger btn-sm">Salir</button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <div class="container-fluid px-4 py-4">
+        <partial name="_FlashMessages" />
+        <main role="main">
+            @RenderBody()
+        </main>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

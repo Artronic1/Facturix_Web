@@ -1,0 +1,67 @@
+@model AuditIndexViewModel
+@{
+    ViewData["Title"] = "Auditoría";
+    var modules = ViewBag.Modules as IEnumerable<string> ?? [];
+}
+
+<div class="mb-4">
+    <h1 class="section-title">Auditoría del sistema</h1>
+    <p class="section-subtitle">Trazabilidad de accesos y acciones relevantes realizadas dentro de Facturix Web.</p>
+</div>
+
+<div class="card page-card">
+    <div class="card-body">
+        <form method="get" class="row g-3 mb-4">
+            <div class="col-md-5">
+                <input name="filter" value="@Model.Filter" class="form-control" placeholder="Buscar por usuario, acción o detalle..." />
+            </div>
+            <div class="col-md-3">
+                <select name="module" class="form-select">
+                    @foreach (var module in modules)
+                    {
+                        <option value="@module" selected="@(string.Equals(module, Model.Module, StringComparison.OrdinalIgnoreCase))">@module</option>
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-secondary">Filtrar</button>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        <th>Módulo</th>
+                        <th>Acción</th>
+                        <th>Detalle</th>
+                        <th>Equipo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <td>@item.FechaHora.ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>
+                            <div class="fw-semibold">@item.Usuario</div>
+                            @if (!string.IsNullOrWhiteSpace(item.NombreCompleto))
+                            {
+                                <div class="small text-muted">@item.NombreCompleto</div>
+                            }
+                        </td>
+                        <td>@item.Rol</td>
+                        <td>@item.Modulo</td>
+                        <td>@item.Accion</td>
+                        <td>@item.Detalle</td>
+                        <td>@item.Equipo</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

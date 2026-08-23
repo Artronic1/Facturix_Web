@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: facturix-web
+    env: docker
+    
+    # -------------------------------------------------------------
+    # PLAN Y ALMACENAMIENTO PERSISTENTE
+    # Nota: Los volúmenes persistentes requieren el plan "starter" ($7/mes).
+    # Si deseas usar la capa GRATUITA de Render:
+    # 1. Cambia "plan: starter" por "plan: free"
+    # 2. Elimina o comenta toda la sección "disk"
+    # (¡Ojo! En la capa gratuita, la base de datos se reiniciará con cada despliegue)
+    # -------------------------------------------------------------
+    plan: starter
+    region: oregon
+    
+    # Ubicación del Dockerfile dentro del proyecto
+    dockerfilePath: Dockerfile
+    
+    # Indicar a Render en qué puerto expone el tráfico el contenedor
+    port: 8080
+    
+    # Configuración del disco para persistencia de la base de datos SQLite
+    disk:
+      name: facturix-data
+      mountPath: /data
+      sizeGB: 1
+
+    # Variables de entorno para ASP.NET Core
+    envVars:
+      # Dirección de almacenamiento de base de datosSQLite coincidente con el mountPath del disco
+      - key: FACTURIX_DATA_DIR
+        value: /data
+      
+      # Forzar a la app a usar el puerto expuesto
+      - key: ASPNETCORE_URLS
+        value: http://+:8080
+      
+      # Entorno de ejecución
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
