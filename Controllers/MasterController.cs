@@ -293,7 +293,31 @@ public class MasterController : Controller
         var users = tenantConn.Query("SELECT * FROM Usuarios").ToList();
         return Json(users);
     }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult MigrarASupabase(string connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            TempData["Error"] = "La cadena de conexión de Supabase es requerida.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        try
+        {
+            DatabaseMigrator.MigrateToSupabase(connectionString.Trim());
+            TempData["Success"] = "¡La base de datos y todas las empresas locales se han migrado exitosamente a Supabase!";
+        }
+        catch (Exception ex)
+        {
+            TempData["Error"] = $"Error durante la migración: {ex.Message}";
+        }
+
+        return RedirectToAction(nameof(Index));
+    }
 }
+
 
 public class EmpresaViewModel
 {

@@ -89,6 +89,27 @@
     </div>
 </div>
 
+<div class="card shadow-sm border-0 mt-4 bg-dark text-white">
+    <div class="card-body">
+        <h5 class="card-title fw-bold text-primary"><i class="bi bi-cloud-arrow-up-fill me-2"></i> Migrar Base de Datos a Supabase</h5>
+        <p class="text-muted small">Copia todas las empresas, usuarios globales, configuraciones y el historial de ventas completo desde tus archivos SQLite locales hacia tu base de datos PostgreSQL de Supabase en un solo paso.</p>
+        
+        <form asp-action="MigrarASupabase" method="post" class="row g-3 align-items-center mt-2">
+            @Html.AntiForgeryToken()
+            <div class="col-md-9">
+                <input type="text" name="connectionString" class="form-control bg-secondary border-0 text-white" required 
+                       placeholder="Host=db.xxxx.supabase.co;Database=postgres;Username=postgres;Password=tu-password;Port=5432;" />
+                <div class="form-text text-muted">Asegúrate de que la base de datos de destino en Supabase esté accesible y vacía para evitar conflictos.</div>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100" onclick="return confirm('¿Estás seguro de que deseas iniciar la migración? Esto truncará los datos actuales en Supabase y copiará todo tu SQLite local.')">
+                    <i class="bi bi-rocket-takeoff me-1"></i> Iniciar Migración
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Modal Nueva Empresa -->
 <div class="modal fade" id="newTenantModal" tabindex="-1">
     <div class="modal-dialog">
