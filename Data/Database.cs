@@ -62,7 +62,7 @@ public static class Db
     {
         _httpContextAccessor = httpContextAccessor;
         
-        var supabaseConnStr = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+        var supabaseConnStr = FacturixWeb.Infrastructure.DbConnectionFactory.FormatConnectionString(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
         if (string.IsNullOrEmpty(supabaseConnStr))
         {
             MigrateLegacyDatabaseIfNeeded();
@@ -74,7 +74,7 @@ public static class Db
     {
         _initializedTenants.Add(dbFileName);
         
-        var supabaseConnStr = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+        var supabaseConnStr = FacturixWeb.Infrastructure.DbConnectionFactory.FormatConnectionString(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
         if (!string.IsNullOrEmpty(supabaseConnStr))
         {
             using var conn = new Npgsql.NpgsqlConnection(supabaseConnStr);
@@ -535,7 +535,7 @@ public static class Db
             InitializeDatabaseSchema(dbName);
         }
 
-        var supabaseConnStr = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+        var supabaseConnStr = FacturixWeb.Infrastructure.DbConnectionFactory.FormatConnectionString(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
         if (!string.IsNullOrEmpty(supabaseConnStr))
         {
             var conn = new Npgsql.NpgsqlConnection(supabaseConnStr);
@@ -559,7 +559,7 @@ public static class Db
 
     public static DbConnection CreateConnection(string dbName)
     {
-        var supabaseConnStr = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+        var supabaseConnStr = FacturixWeb.Infrastructure.DbConnectionFactory.FormatConnectionString(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
         if (!string.IsNullOrEmpty(supabaseConnStr))
         {
             var conn = new Npgsql.NpgsqlConnection(supabaseConnStr);

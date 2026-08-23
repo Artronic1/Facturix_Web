@@ -24,7 +24,7 @@ public static class MasterDb
 
     public static DbConnection CreateConnection()
     {
-        var supabaseConnStr = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+        var supabaseConnStr = FacturixWeb.Infrastructure.DbConnectionFactory.FormatConnectionString(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
         if (!string.IsNullOrEmpty(supabaseConnStr))
         {
             return new Npgsql.NpgsqlConnection(supabaseConnStr);
@@ -34,7 +34,7 @@ public static class MasterDb
 
     public static void Initialize()
     {
-        var supabaseConnStr = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+        var supabaseConnStr = FacturixWeb.Infrastructure.DbConnectionFactory.FormatConnectionString(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
         if (string.IsNullOrEmpty(supabaseConnStr))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(DbPath)!);

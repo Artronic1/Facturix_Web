@@ -20,13 +20,44 @@ public sealed class DbConnectionFactory : IDbConnectionFactory
         _tenantProvider = tenantProvider;
     }
 
+    public static string? FormatConnectionString(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return input;
+        
+        input = input.Trim();
+        if (input.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase) || 
+            input.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var uri = new Uri(input);
+                var userInfo = uri.UserInfo.Split(':');
+                var username = userInfo[0];
+                var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+                
+                var host = uri.Host;
+                var port = uri.Port > 0 ? uri.Port : 5432;
+                var database = uri.AbsolutePath.TrimStart('/');
+                
+                return $"Host={host};Database={database};Username={username};Password={password};Port={port};Ssl Mode=Require;Trust Server Certificate=true;";
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.TraceWarning($"Fallo al parsear URI de conexión: {ex.Message}");
+                return input;
+            }
+        }
+        
+        return input;
+    }
+
     public async Task<DbConnection> CreateConnectionAsync()
     {
         var dbName = _tenantProvider.GetCurrentTenantDbName();
         // Garantizar que la base de datos esté inicializada antes de entregar la conexión.
         Db.InitializeDatabaseSchema(dbName);
         
-        var supabaseConnStr = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+        var supabaseConnStr = FormatConnectionString(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
         if (!string.IsNullOrEmpty(supabaseConnStr))
         {
             var conn = new Npgsql.NpgsqlConnection(supabaseConnStr);
