@@ -114,7 +114,7 @@
 <div class="modal fade" id="newTenantModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form asp-action="CrearEmpresa" method="post">
+            <form asp-action="CrearEmpresa" method="post" autocomplete="off">
                 @Html.AntiForgeryToken()
                 <div class="modal-header border-0 pb-0">
                     <h5 class="modal-title fw-bold">Registrar Nueva Empresa</h5>
@@ -149,12 +149,12 @@
                     
                     <div class="mb-3">
                         <label class="form-label">Nombre de Usuario (Único Global)</label>
-                        <input type="text" name="adminUser" class="form-control" required placeholder="Ej. admin_donjulio" />
+                        <input type="text" name="adminUser" class="form-control" required placeholder="Ej. admin_donjulio" autocomplete="off" />
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label">Contraseña</label>
-                        <input type="password" name="adminPass" class="form-control" required />
+                        <input type="password" name="adminPass" class="form-control" required autocomplete="new-password" />
                     </div>
                 </div>
                 <div class="modal-footer border-0 pt-0">
