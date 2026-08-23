@@ -100,6 +100,7 @@
 
                             // Re-bind events to new DOM elements
                             bindAjaxForms();
+                            formatAllExisting();
                         } else {
                             window.location.reload();
                         }
@@ -113,7 +114,66 @@
         });
     }
 
-    // Initialize seamless forms
+    // ─── Auto-format RNC/Cédula and Teléfono ───
+    function formatRnc(input) {
+        let val = input.value.replace(/\D/g, '').substring(0, 11);
+        let formatted = '';
+        if (val.length > 0) {
+            formatted = val.substring(0, 3);
+            if (val.length > 3) {
+                if (val.length <= 9) {
+                    formatted += '-' + val.substring(3, 8);
+                    if (val.length > 8) {
+                        formatted += '-' + val.substring(8, 9);
+                    }
+                } else {
+                    formatted += '-' + val.substring(3, 10);
+                    if (val.length > 10) {
+                        formatted += '-' + val.substring(10, 11);
+                    }
+                }
+            }
+        }
+        input.value = formatted;
+    }
+
+    function formatTelefono(input) {
+        let val = input.value.replace(/\D/g, '').substring(0, 10);
+        let formatted = '';
+        if (val.length > 0) {
+            formatted = val.substring(0, 3);
+            if (val.length > 3) {
+                formatted += '-' + val.substring(3, 6);
+                if (val.length > 6) {
+                    formatted += '-' + val.substring(6, 10);
+                }
+            }
+        }
+        input.value = formatted;
+    }
+
+    function formatAllExisting() {
+        document.querySelectorAll('input[name*="rnc" i], input[id*="rnc" i], input[placeholder*="130-44555-1"]').forEach(formatRnc);
+        document.querySelectorAll('input[name*="telefono" i], input[id*="telefono" i], input[placeholder*="809-555-0000"], input[type="tel"]').forEach(formatTelefono);
+    }
+
+    // Global Event Delegation for dynamic inputs
+    document.addEventListener('input', function (e) {
+        var target = e.target;
+        if (!target || target.tagName !== 'INPUT') return;
+
+        if (target.matches('input[name*="rnc" i], input[id*="rnc" i], input[placeholder*="130-44555-1"]')) {
+            formatRnc(target);
+        } else if (target.matches('input[name*="telefono" i], input[id*="telefono" i], input[placeholder*="809-555-0000"], input[type="tel"]')) {
+            formatTelefono(target);
+        }
+    });
+
+    // Initialize
     bindAjaxForms();
+    formatAllExisting();
+
+    // Format when a bootstrap modal is opened
+    document.addEventListener('shown.bs.modal', formatAllExisting);
 
 })();
