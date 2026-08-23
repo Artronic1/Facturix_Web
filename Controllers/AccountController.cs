@@ -32,7 +32,7 @@ public class AccountController : Controller
         }
 
         var username = model.UserName.Trim();
-        using var masterConn = new Microsoft.Data.Sqlite.SqliteConnection(MasterDb.ConnString);
+        using var masterConn = MasterDb.CreateConnection();
         masterConn.Open();
 
         // 1. Check SuperAdmin
@@ -72,8 +72,7 @@ public class AccountController : Controller
 
         // 3. Authenticate in Tenant DB
         InventarioProVisual.Data.Db.InitializeDatabaseSchema(tenantDb);
-        using var tenantConn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={Path.Combine(InventarioProVisual.Data.Db.StorageRootPath, tenantDb)}");
-        tenantConn.Open();
+        using var tenantConn = Db.CreateConnection(tenantDb);
         
         var user = tenantConn.QueryFirstOrDefault<Usuario>(
             "SELECT * FROM Usuarios WHERE LOWER(NombreUsuario) = LOWER(@username) AND Activo = 1",

@@ -10,7 +10,7 @@ using InventarioProVisual.Helpers;
 using InventarioProVisual.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.Sqlite;
+using System.Data.Common;
 
 namespace FacturixWeb.Controllers;
 
@@ -338,7 +338,7 @@ public sealed class QuotesController : AppController
         }
     }
 
-    private async Task<List<CartLineViewModel>> BuildCartLinesAsync(SqliteConnection conn, CartSessionState state)
+    private async Task<List<CartLineViewModel>> BuildCartLinesAsync(DbConnection conn, CartSessionState state)
     {
         if (state.Items.Count == 0) return [];
 
@@ -366,7 +366,7 @@ public sealed class QuotesController : AppController
         return lines;
     }
 
-    private static async Task<string> ResolveQuoteCustomerNameAsync(SqliteConnection conn, long customerId, string? customerName)
+    private static async Task<string> ResolveQuoteCustomerNameAsync(DbConnection conn, long customerId, string? customerName)
     {
         if (!string.IsNullOrWhiteSpace(customerName)) return customerName.Trim();
         if (customerId > 0)

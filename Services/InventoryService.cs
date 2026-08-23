@@ -3,20 +3,20 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Dapper;
-using Microsoft.Data.Sqlite;
+using System.Data.Common;
 
 namespace FacturixWeb.Services;
 
 public interface IInventoryService
 {
-    Task<bool> IsComboAvailableAsync(SqliteConnection conn, int productId, int quantity, SqliteTransaction? tran = null);
-    Task<int> GetEffectiveMaxStockAsync(SqliteConnection conn, int productId, int ownStock, SqliteTransaction? tran = null);
-    Task DiscountStockAsync(SqliteConnection conn, SqliteTransaction tran, int productId, int quantity);
+    Task<bool> IsComboAvailableAsync(DbConnection conn, int productId, int quantity, DbTransaction? tran = null);
+    Task<int> GetEffectiveMaxStockAsync(DbConnection conn, int productId, int ownStock, DbTransaction? tran = null);
+    Task DiscountStockAsync(DbConnection conn, DbTransaction tran, int productId, int quantity);
 }
 
 public sealed class InventoryService : IInventoryService
 {
-    public async Task<bool> IsComboAvailableAsync(SqliteConnection conn, int productId, int quantity, SqliteTransaction? tran = null)
+    public async Task<bool> IsComboAvailableAsync(DbConnection conn, int productId, int quantity, DbTransaction? tran = null)
     {
         var components = (await conn.QueryAsync<(int ProductoId, int Cantidad)>(
             "SELECT ProductoId, Cantidad FROM Combos WHERE ComboId = @productId",
@@ -38,7 +38,7 @@ public sealed class InventoryService : IInventoryService
         return true;
     }
 
-    public async Task<int> GetEffectiveMaxStockAsync(SqliteConnection conn, int productId, int ownStock, SqliteTransaction? tran = null)
+    public async Task<int> GetEffectiveMaxStockAsync(DbConnection conn, int productId, int ownStock, DbTransaction? tran = null)
     {
         var components = (await conn.QueryAsync<(int ProductoId, int Cantidad)>(
             "SELECT ProductoId, Cantidad FROM Combos WHERE ComboId = @productId",
@@ -59,7 +59,7 @@ public sealed class InventoryService : IInventoryService
         return Math.Min(ownStock, maxFromComponents);
     }
 
-    public async Task DiscountStockAsync(SqliteConnection conn, SqliteTransaction tran, int productId, int quantity)
+    public async Task DiscountStockAsync(DbConnection conn, DbTransaction tran, int productId, int quantity)
     {
         var components = (await conn.QueryAsync<(int ProductoId, int Cantidad)>(
             "SELECT ProductoId, Cantidad FROM Combos WHERE ComboId = @productId",

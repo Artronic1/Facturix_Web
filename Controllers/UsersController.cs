@@ -9,7 +9,7 @@ using InventarioProVisual.Data;
 using InventarioProVisual.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.Sqlite;
+using System.Data.Common;
 
 namespace FacturixWeb.Controllers;
 
@@ -82,7 +82,7 @@ public sealed class UsersController : AppController
         using var conn = await _dbConnectionFactory.CreateConnectionAsync();
         
         // --- Multi-tenant Global Verification & Registration ---
-        using var masterConn = new SqliteConnection(MasterDb.ConnString);
+        using var masterConn = MasterDb.CreateConnection();
         await masterConn.OpenAsync();
         var currentTenantDbName = _tenantProvider.GetCurrentTenantDbName();
         var empresaId = await masterConn.ExecuteScalarAsync<int>("SELECT Id FROM Empresas WHERE DbFileName = @dbFileName", new { dbFileName = currentTenantDbName });

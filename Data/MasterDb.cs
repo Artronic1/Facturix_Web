@@ -1,9 +1,9 @@
 using System;
+using System.Data.Common;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using Dapper;
-using Microsoft.Data.Sqlite;
 
 namespace InventarioProVisual.Data;
 
@@ -22,37 +22,83 @@ public static class MasterDb
     private const int PasswordIterations = 120000;
     private const string PasswordPrefix = "PBKDF2$SHA256";
 
+    public static DbConnection CreateConnection()
+    {
+        var supabaseConnStr = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+        if (!string.IsNullOrEmpty(supabaseConnStr))
+        {
+            return new Npgsql.NpgsqlConnection(supabaseConnStr);
+        }
+        return new Microsoft.Data.Sqlite.SqliteConnection(ConnString);
+    }
+
     public static void Initialize()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(DbPath)!);
+        var supabaseConnStr = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+        if (string.IsNullOrEmpty(supabaseConnStr))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(DbPath)!);
+        }
 
-        using var conn = new SqliteConnection(ConnString);
+        using var conn = CreateConnection();
         conn.Open();
 
-        conn.Execute(
-            """
-            CREATE TABLE IF NOT EXISTS Empresas (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Nombre TEXT NOT NULL,
-                Activa INTEGER NOT NULL DEFAULT 1,
-                DbFileName TEXT NOT NULL UNIQUE,
-                FechaRegistro TEXT NOT NULL
-            );
+        if (conn is Npgsql.NpgsqlConnection)
+        {
+            // Dialecto PostgreSQL
+            conn.Execute(
+                """
+                CREATE TABLE IF NOT EXISTS Empresas (
+                    Id SERIAL PRIMARY KEY,
+                    Nombre TEXT NOT NULL,
+                    Activa INTEGER NOT NULL DEFAULT 1,
+                    DbFileName TEXT NOT NULL UNIQUE,
+                    FechaRegistro TEXT NOT NULL
+                );
 
-            CREATE TABLE IF NOT EXISTS UsuariosGlobales (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                NombreUsuario TEXT NOT NULL UNIQUE,
-                DbFileName TEXT NOT NULL,
-                EmpresaId INTEGER NOT NULL,
-                FOREIGN KEY(EmpresaId) REFERENCES Empresas(Id)
-            );
+                CREATE TABLE IF NOT EXISTS UsuariosGlobales (
+                    Id SERIAL PRIMARY KEY,
+                    NombreUsuario TEXT NOT NULL UNIQUE,
+                    DbFileName TEXT NOT NULL,
+                    EmpresaId INTEGER NOT NULL,
+                    FOREIGN KEY(EmpresaId) REFERENCES Empresas(Id)
+                );
 
-            CREATE TABLE IF NOT EXISTS SuperAdmins (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                NombreUsuario TEXT NOT NULL UNIQUE,
-                PasswordHash TEXT NOT NULL
-            );
-            """);
+                CREATE TABLE IF NOT EXISTS SuperAdmins (
+                    Id SERIAL PRIMARY KEY,
+                    NombreUsuario TEXT NOT NULL UNIQUE,
+                    PasswordHash TEXT NOT NULL
+                );
+                """);
+        }
+        else
+        {
+            // Dialecto SQLite
+            conn.Execute(
+                """
+                CREATE TABLE IF NOT EXISTS Empresas (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Nombre TEXT NOT NULL,
+                    Activa INTEGER NOT NULL DEFAULT 1,
+                    DbFileName TEXT NOT NULL UNIQUE,
+                    FechaRegistro TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS UsuariosGlobales (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    NombreUsuario TEXT NOT NULL UNIQUE,
+                    DbFileName TEXT NOT NULL,
+                    EmpresaId INTEGER NOT NULL,
+                    FOREIGN KEY(EmpresaId) REFERENCES Empresas(Id)
+                );
+
+                CREATE TABLE IF NOT EXISTS SuperAdmins (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    NombreUsuario TEXT NOT NULL UNIQUE,
+                    PasswordHash TEXT NOT NULL
+                );
+                """);
+        }
 
         // Ensure SuperAdmin exists
         var exists = conn.ExecuteScalar<int>("SELECT COUNT(*) FROM SuperAdmins WHERE NombreUsuario = @user", new { user = MasterUser });
@@ -62,11 +108,14 @@ public static class MasterDb
             conn.Execute("INSERT INTO SuperAdmins (NombreUsuario, PasswordHash) VALUES (@user, @hash)", new { user = MasterUser, hash });
         }
 
-        // Migrate current Facturix DB as "Empresa 1" if needed
-        EnsureLegacyDbRegistered(conn);
+        // Migración de base de datos legada (sólo para SQLite local)
+        if (conn is not Npgsql.NpgsqlConnection)
+        {
+            EnsureLegacyDbRegistered(conn);
+        }
     }
 
-    private static void EnsureLegacyDbRegistered(SqliteConnection conn)
+    private static void EnsureLegacyDbRegistered(DbConnection conn)
     {
         var exists = conn.ExecuteScalar<int>("SELECT COUNT(*) FROM Empresas WHERE DbFileName = 'facturix.db'");
         if (exists == 0)
@@ -81,7 +130,7 @@ public static class MasterDb
                 var empresaId = conn.ExecuteScalar<int>("SELECT Id FROM Empresas WHERE DbFileName = 'facturix.db'");
                 
                 // Read users from facturix.db and register them in master.db
-                using var legacyConn = new SqliteConnection($"Data Source={facturixDbPath}");
+                using var legacyConn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={facturixDbPath}");
                 legacyConn.Open();
                 var usuarios = legacyConn.Query<string>("SELECT NombreUsuario FROM Usuarios");
                 foreach(var user in usuarios)

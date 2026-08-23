@@ -61,18 +61,18 @@ Una vez que el despliegue finalice y el estado cambie a **Live**:
 
 ## Consideraciones Adicionales
 
-### ¿Plan de Pago (Starter) o Capa Gratuita (Free)?
-Por defecto, `render.yaml` está configurado para usar el plan **Starter** porque permite conectar un **disco persistente**. SQLite guarda toda la información en archivos locales, y sin disco persistente, los datos se perderían cada vez que Render reinicie el contenedor (aproximadamente una vez al día).
+### Uso de Supabase (PostgreSQL) - ¡Recomendado para la Capa Gratuita!
+La aplicación está configurada con soporte híbrido:
+1. **SQLite (Local / Por defecto)**: Ideal para pruebas rápidas. Si no configuras la variable `SUPABASE_CONNECTION_STRING` en Render, se usará SQLite en local.
+   * *Nota*: Para producción con SQLite, necesitarás mantener el plan **Starter** y el volumen **disk** en `render.yaml`, de lo contrario tus datos se borrarán con cada reinicio.
+2. **Supabase (PostgreSQL / Nube)**: Si proporcionas la variable `SUPABASE_CONNECTION_STRING`, la aplicación guardará todos los datos en tu base de datos de Supabase en la nube.
+   * **¡Capa Gratuita Soportada!**: Como la base de datos está externa (en Supabase), puedes cambiar con total seguridad el plan de Render a la **capa gratuita (Free)** sin riesgo de perder datos.
 
-Si prefieres usar la **capa gratuita** de Render (solo para pruebas breves):
-1. Abre `render.yaml` en tu editor de código.
-2. Modifica la línea `plan: starter` por `plan: free`.
-3. Elimina o comenta las líneas correspondientes a la directiva `disk:`:
-   ```yaml
-   # Comentar o eliminar esto para la capa gratuita:
-   # disk:
-   #   name: facturix-data
-   #   mountPath: /data
-   #   sizeGB: 1
-   ```
-4. Guarda el archivo, haz un nuevo commit y haz `git push origin main`.
+#### Cómo configurar Supabase en Render:
+1. Crea un proyecto en [Supabase](https://supabase.com/).
+2. Ve a las configuraciones de tu proyecto de Supabase -> **Database** -> **Connection Strings** -> selecciona la pestaña **URI** (o copia los datos de Host, User, Password y Database para armar una cadena de conexión estándar).
+3. El formato de la cadena debe ser similar a:
+   `Host=db.xxxx.supabase.co;Database=postgres;Username=postgres;Password=tu-contraseña;Port=5432;`
+4. Al desplegar el Blueprint en Render, se te pedirá el valor para `SUPABASE_CONNECTION_STRING`. Pega allí tu cadena de conexión.
+5. Si deseas usar el plan gratuito de Render con Supabase, abre `render.yaml`, cambia `plan: starter` a `plan: free` y elimina o comenta la sección `disk:`.
+

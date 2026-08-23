@@ -39,3 +39,9 @@ services:
       # Entorno de ejecución
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
+      
+      # Cadena de conexión de Supabase (PostgreSQL)
+      # Deja esta variable vacía en Render si prefieres seguir usando SQLite.
+      - key: SUPABASE_CONNECTION_STRING
+        placeholder: "Host=db.xxxx.supabase.co;Database=postgres;Username=postgres;Password=tu-password;Port=5432;"
+

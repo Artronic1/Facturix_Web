@@ -11,7 +11,7 @@ using InventarioProVisual.Helpers;
 using InventarioProVisual.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.Sqlite;
+using System.Data.Common;
 
 namespace FacturixWeb.Controllers;
 
@@ -322,7 +322,7 @@ public sealed class SalesController : AppController
         };
     }
 
-    private async Task<List<CartLineViewModel>> BuildCartLinesAsync(SqliteConnection conn, CartSessionState state)
+    private async Task<List<CartLineViewModel>> BuildCartLinesAsync(DbConnection conn, CartSessionState state)
     {
         if (state.Items.Count == 0) return [];
 
@@ -360,7 +360,7 @@ public sealed class SalesController : AppController
         return lines;
     }
 
-    private static async Task<Caja?> GetOpenCashAsync(SqliteConnection conn)
+    private static async Task<Caja?> GetOpenCashAsync(DbConnection conn)
     {
         return await conn.QueryFirstOrDefaultAsync<Caja>($"SELECT {SqlCajaProjection} FROM Caja WHERE Estado = 'ABIERTA' ORDER BY Id DESC LIMIT 1");
     }

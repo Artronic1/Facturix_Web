@@ -14,7 +14,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.Sqlite;
+using System.Data.Common;
 
 namespace FacturixWeb.Controllers;
 
@@ -44,7 +44,7 @@ public sealed class MobileApiController : ControllerBase
             return BadRequest(new MobileErrorResponse("El usuario y la contraseña son obligatorios."));
         }
 
-        using var masterConn = new SqliteConnection(MasterDb.ConnString);
+        using var masterConn = MasterDb.CreateConnection();
         await masterConn.OpenAsync();
 
         var superAdminHash = await masterConn.QueryFirstOrDefaultAsync<string>(
@@ -73,8 +73,7 @@ public sealed class MobileApiController : ControllerBase
         }
 
         Db.InitializeDatabaseSchema(tenantDb);
-        using var tenantConn = new SqliteConnection($"Data Source={System.IO.Path.Combine(Db.StorageRootPath, tenantDb)}");
-        await tenantConn.OpenAsync();
+        using var tenantConn = Db.CreateConnection(tenantDb);
 
         var user = await tenantConn.QueryFirstOrDefaultAsync<Usuario>(
             "SELECT * FROM Usuarios WHERE LOWER(NombreUsuario) = LOWER(@username) AND Activo = 1",
@@ -544,13 +543,13 @@ public sealed class MobileApiController : ControllerBase
             TenantDb: principal.FindFirstValue("TenantDb") ?? string.Empty);
     }
 
-    private static async Task<Caja?> GetOpenCashAsync(SqliteConnection conn)
+    private static async Task<Caja?> GetOpenCashAsync(DbConnection conn)
     {
         return await conn.QueryFirstOrDefaultAsync<Caja>(
             "SELECT Id, UsuarioId, Apertura, Cierre, SaldoInicial, SaldoFinal, Estado FROM Caja WHERE Estado = 'ABIERTA' ORDER BY Id DESC LIMIT 1");
     }
 
-    private async Task<List<MobileCheckoutLine>> BuildCheckoutLinesAsync(SqliteConnection conn, List<MobileCheckoutItem> items)
+    private async Task<List<MobileCheckoutLine>> BuildCheckoutLinesAsync(DbConnection conn, List<MobileCheckoutItem> items)
     {
         var cleanItems = items
             .Where(x => x.ProductId > 0 && x.Quantity > 0)

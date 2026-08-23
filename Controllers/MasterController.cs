@@ -13,7 +13,8 @@ public class MasterController : Controller
 {
     public IActionResult Index()
     {
-        using var conn = new Microsoft.Data.Sqlite.SqliteConnection(MasterDb.ConnString);
+        using var conn = MasterDb.CreateConnection();
+        conn.Open();
         var query = @"
             SELECT e.*, u.NombreUsuario as AdminUser
             FROM Empresas e
@@ -27,10 +28,10 @@ public class MasterController : Controller
             try
             {
                 var path = Path.Combine(Db.StorageRootPath, emp.DbFileName);
-                if (System.IO.File.Exists(path))
+                var supabaseActive = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
+                if (supabaseActive || System.IO.File.Exists(path))
                 {
-                    using var tConn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path}");
-                    tConn.Open();
+                    using var tConn = Db.CreateConnection(emp.DbFileName);
                     var configs = tConn.Query("SELECT Clave, Valor FROM Configuracion").ToDictionary(row => (string)row.Clave, row => (string)row.Valor);
                     emp.Rnc = configs.GetValueOrDefault("RNC", "");
                     emp.Telefono = configs.GetValueOrDefault("TELEFONO", "");
@@ -60,7 +61,7 @@ public class MasterController : Controller
         telefono = telefono?.Trim() ?? "";
         direccion = direccion?.Trim() ?? "";
 
-        using var masterConn = new Microsoft.Data.Sqlite.SqliteConnection(MasterDb.ConnString);
+        using var masterConn = MasterDb.CreateConnection();
         masterConn.Open();
         
         var userExists = masterConn.ExecuteScalar<int>("SELECT COUNT(*) FROM UsuariosGlobales WHERE LOWER(NombreUsuario) = LOWER(@adminUser)", new { adminUser });
@@ -77,8 +78,18 @@ public class MasterController : Controller
         using var tran = masterConn.BeginTransaction();
         try
         {
-            masterConn.Execute("INSERT INTO Empresas (Nombre, Activa, DbFileName, FechaRegistro) VALUES (@nombreEmpresa, 1, @dbFileName, @fecha)", new { nombreEmpresa, dbFileName, fecha }, tran);
-            var empresaId = masterConn.ExecuteScalar<int>("SELECT last_insert_rowid()", null, tran);
+            int empresaId;
+            if (masterConn is Npgsql.NpgsqlConnection)
+            {
+                empresaId = masterConn.ExecuteScalar<int>(
+                    "INSERT INTO Empresas (Nombre, Activa, DbFileName, FechaRegistro) VALUES (@nombreEmpresa, 1, @dbFileName, @fecha) RETURNING Id", 
+                    new { nombreEmpresa, dbFileName, fecha }, tran);
+            }
+            else
+            {
+                masterConn.Execute("INSERT INTO Empresas (Nombre, Activa, DbFileName, FechaRegistro) VALUES (@nombreEmpresa, 1, @dbFileName, @fecha)", new { nombreEmpresa, dbFileName, fecha }, tran);
+                empresaId = masterConn.ExecuteScalar<int>("SELECT last_insert_rowid()", null, tran);
+            }
             
             masterConn.Execute("INSERT INTO UsuariosGlobales (NombreUsuario, DbFileName, EmpresaId) VALUES (@adminUser, @dbFileName, @empresaId)", new { adminUser, dbFileName, empresaId }, tran);
             tran.Commit();
@@ -94,9 +105,7 @@ public class MasterController : Controller
         Db.InitializeDatabaseSchema(dbFileName);
         
         // Insert admin user into the newly created tenant DB
-        var tenantDbPath = Path.Combine(Db.StorageRootPath, dbFileName);
-        using var tenantConn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tenantDbPath}");
-        tenantConn.Open();
+        using var tenantConn = Db.CreateConnection(dbFileName);
         var hash = Db.HashPassword(adminPass);
         tenantConn.Execute("INSERT INTO Usuarios (NombreUsuario, PasswordHash, NombreCompleto, Rol, Activo, FechaCreacion, Permisos) VALUES (@adminUser, @hash, 'Administrador Principal', 'Admin', 1, @fecha, 'TODO')", new { adminUser, hash, fecha });
         
@@ -114,7 +123,8 @@ public class MasterController : Controller
     [ValidateAntiForgeryToken]
     public IActionResult AlternarEstado(int id)
     {
-        using var masterConn = new Microsoft.Data.Sqlite.SqliteConnection(MasterDb.ConnString);
+        using var masterConn = MasterDb.CreateConnection();
+        masterConn.Open();
         var estadoActual = masterConn.ExecuteScalar<int>("SELECT Activa FROM Empresas WHERE Id = @id", new { id });
         var nuevoEstado = estadoActual == 1 ? 0 : 1;
         masterConn.Execute("UPDATE Empresas SET Activa = @nuevoEstado WHERE Id = @id", new { nuevoEstado, id });
@@ -141,7 +151,7 @@ public class MasterController : Controller
         telefono = telefono?.Trim() ?? "";
         direccion = direccion?.Trim() ?? "";
 
-        using var masterConn = new Microsoft.Data.Sqlite.SqliteConnection(MasterDb.ConnString);
+        using var masterConn = MasterDb.CreateConnection();
         masterConn.Open();
 
         // Si cambió el usuario, verificar que el nuevo no esté en uso
@@ -184,10 +194,10 @@ public class MasterController : Controller
         try
         {
             var tenantDbPath = Path.Combine(Db.StorageRootPath, dbFileName);
-            if (System.IO.File.Exists(tenantDbPath))
+            var supabaseActive = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
+            if (supabaseActive || System.IO.File.Exists(tenantDbPath))
             {
-                using var tenantConn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tenantDbPath}");
-                tenantConn.Open();
+                using var tenantConn = Db.CreateConnection(dbFileName);
                 
                 if (!string.Equals(oldAdminUser, newAdminUser, StringComparison.OrdinalIgnoreCase))
                 {
@@ -221,7 +231,7 @@ public class MasterController : Controller
     [ValidateAntiForgeryToken]
     public IActionResult EliminarEmpresa(int id)
     {
-        using var masterConn = new Microsoft.Data.Sqlite.SqliteConnection(MasterDb.ConnString);
+        using var masterConn = MasterDb.CreateConnection();
         masterConn.Open();
         
         var empresa = masterConn.QueryFirstOrDefault("SELECT DbFileName, Nombre FROM Empresas WHERE Id = @id", new { id });
@@ -236,6 +246,11 @@ public class MasterController : Controller
         {
             masterConn.Execute("DELETE FROM UsuariosGlobales WHERE EmpresaId = @id", new { id }, tran);
             masterConn.Execute("DELETE FROM Empresas WHERE Id = @id", new { id }, tran);
+            if (masterConn is Npgsql.NpgsqlConnection)
+            {
+                var schemaName = ((string)empresa.DbFileName).Replace(".db", "").Replace("-", "_").ToLower();
+                masterConn.Execute($"DROP SCHEMA IF EXISTS {schemaName} CASCADE;");
+            }
             tran.Commit();
         }
         catch
@@ -271,10 +286,10 @@ public class MasterController : Controller
     public IActionResult DebugTenant(string dbName)
     {
         var tenantDbPath = Path.Combine(Db.StorageRootPath, dbName);
-        if (!System.IO.File.Exists(tenantDbPath)) return Content("Not found");
+        var supabaseActive = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
+        if (!supabaseActive && !System.IO.File.Exists(tenantDbPath)) return Content("Not found");
         
-        using var tenantConn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tenantDbPath}");
-        tenantConn.Open();
+        using var tenantConn = Db.CreateConnection(dbName);
         var users = tenantConn.Query("SELECT * FROM Usuarios").ToList();
         return Json(users);
     }

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Dapper;
-using Microsoft.Data.Sqlite;
+using System.Data.Common;
 
 namespace FacturixWeb.Services;
 
@@ -15,7 +15,7 @@ public sealed record CheckoutResult(bool Success, int InvoiceId, string ErrorMes
 public interface ISalesService
 {
     Task<CheckoutResult> ProcessCheckoutAsync(
-        SqliteConnection conn, 
+        DbConnection conn, 
         List<CheckoutLineRequest> lines, 
         int cashId, 
         decimal discountPercent, 
@@ -35,7 +35,7 @@ public sealed class SalesService : ISalesService
     }
 
     public async Task<CheckoutResult> ProcessCheckoutAsync(
-        SqliteConnection conn, 
+        DbConnection conn, 
         List<CheckoutLineRequest> lines, 
         int cashId, 
         decimal discountPercent, 
@@ -46,7 +46,7 @@ public sealed class SalesService : ISalesService
     {
         if (lines.Count == 0) return new CheckoutResult(false, 0, "El carrito está vacío.");
 
-        using var tran = (SqliteTransaction)await conn.BeginTransactionAsync();
+        using var tran = await conn.BeginTransactionAsync();
         try
         {
             var subtotal = lines.Sum(x => x.Total);
@@ -68,17 +68,35 @@ public sealed class SalesService : ISalesService
                     new { nextNcf }, tran);
             }
 
-            var invoiceId = await conn.ExecuteScalarAsync<int>(
-                """
-                INSERT INTO Facturas (ClienteId, CajaId, Total, MetodoPago, Fecha, Ncf, UsuarioId, Estado)
-                VALUES (@ClienteId, @CajaId, @Total, @MetodoPago, @Fecha, @Ncf, @UsuarioId, @Estado);
-                SELECT last_insert_rowid();
-                """,
-                new { 
-                    ClienteId = resolvedCustomerId, CajaId = cashId, Total = total, MetodoPago = paymentMethod, 
-                    Fecha = timestamp, Ncf = ncf, UsuarioId = userId, 
-                    Estado = paymentMethod == "CREDITO" ? "Pendiente" : "Pagada" 
-                }, tran);
+            int invoiceId;
+            if (conn is Npgsql.NpgsqlConnection)
+            {
+                invoiceId = await conn.ExecuteScalarAsync<int>(
+                    """
+                    INSERT INTO Facturas (ClienteId, CajaId, Total, MetodoPago, Fecha, Ncf, UsuarioId, Estado)
+                    VALUES (@ClienteId, @CajaId, @Total, @MetodoPago, @Fecha, @Ncf, @UsuarioId, @Estado)
+                    RETURNING Id;
+                    """,
+                    new { 
+                        ClienteId = resolvedCustomerId, CajaId = cashId, Total = total, MetodoPago = paymentMethod, 
+                        Fecha = timestamp, Ncf = ncf, UsuarioId = userId, 
+                        Estado = paymentMethod == "CREDITO" ? "Pendiente" : "Pagada" 
+                    }, tran);
+            }
+            else
+            {
+                invoiceId = await conn.ExecuteScalarAsync<int>(
+                    """
+                    INSERT INTO Facturas (ClienteId, CajaId, Total, MetodoPago, Fecha, Ncf, UsuarioId, Estado)
+                    VALUES (@ClienteId, @CajaId, @Total, @MetodoPago, @Fecha, @Ncf, @UsuarioId, @Estado);
+                    SELECT last_insert_rowid();
+                    """,
+                    new { 
+                        ClienteId = resolvedCustomerId, CajaId = cashId, Total = total, MetodoPago = paymentMethod, 
+                        Fecha = timestamp, Ncf = ncf, UsuarioId = userId, 
+                        Estado = paymentMethod == "CREDITO" ? "Pendiente" : "Pagada" 
+                    }, tran);
+            }
 
             var runningTotal = 0m;
             var factor = 1 - (discount / 100m);
@@ -129,16 +147,28 @@ public sealed class SalesService : ISalesService
     }
 
     private async Task InsertSaleAsync(
-        SqliteConnection conn, SqliteTransaction tran, int invoiceId, CheckoutLineRequest line, 
+        DbConnection conn, DbTransaction tran, int invoiceId, CheckoutLineRequest line, 
         int cashId, decimal totalAdjusted, string timestamp, long customerId, string paymentMethod)
     {
-        await conn.ExecuteScalarAsync<int>(
-            """
-            INSERT INTO Ventas (FacturaId, ProductoId, CajaId, Cantidad, PrecioUnitario, Total, Fecha, ClienteId, MetodoPago)
-            VALUES (@invoiceId, @productId, @cashId, @quantity, @unitPrice, @total, @fecha, @customerId, @paymentMethod);
-            SELECT last_insert_rowid();
-            """,
-            new { invoiceId, productId = line.ProductId, cashId, quantity = line.Quantity, unitPrice = line.Price, total = totalAdjusted, fecha = timestamp, customerId, paymentMethod }, tran);
+        if (conn is Npgsql.NpgsqlConnection)
+        {
+            await conn.ExecuteAsync(
+                """
+                INSERT INTO Ventas (FacturaId, ProductoId, CajaId, Cantidad, PrecioUnitario, Total, Fecha, ClienteId, MetodoPago)
+                VALUES (@invoiceId, @productId, @cashId, @quantity, @unitPrice, @total, @fecha, @customerId, @paymentMethod);
+                """,
+                new { invoiceId, productId = line.ProductId, cashId, quantity = line.Quantity, unitPrice = line.Price, total = totalAdjusted, fecha = timestamp, customerId, paymentMethod }, tran);
+        }
+        else
+        {
+            await conn.ExecuteAsync(
+                """
+                INSERT INTO Ventas (FacturaId, ProductoId, CajaId, Cantidad, PrecioUnitario, Total, Fecha, ClienteId, MetodoPago)
+                VALUES (@invoiceId, @productId, @cashId, @quantity, @unitPrice, @total, @fecha, @customerId, @paymentMethod);
+                SELECT last_insert_rowid();
+                """,
+                new { invoiceId, productId = line.ProductId, cashId, quantity = line.Quantity, unitPrice = line.Price, total = totalAdjusted, fecha = timestamp, customerId, paymentMethod }, tran);
+        }
 
         await _inventoryService.DiscountStockAsync(conn, tran, line.ProductId, line.Quantity);
     }

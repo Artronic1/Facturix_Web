@@ -5,9 +5,9 @@ using System.IO;
 using System.Security.Cryptography;
 using Dapper;
 using InventarioProVisual.Models;
-using Microsoft.Data.Sqlite;
 using Microsoft.AspNetCore.Http;
 using System.Linq;
+using System.Data.Common;
 
 namespace InventarioProVisual.Data;
 
@@ -61,245 +61,473 @@ public static class Db
     public static void Initialize(IHttpContextAccessor httpContextAccessor)
     {
         _httpContextAccessor = httpContextAccessor;
-        MigrateLegacyDatabaseIfNeeded();
+        
+        var supabaseConnStr = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+        if (string.IsNullOrEmpty(supabaseConnStr))
+        {
+            MigrateLegacyDatabaseIfNeeded();
+        }
         InitializeDatabaseSchema(CurrentDbName);
     }
 
     public static void InitializeDatabaseSchema(string dbFileName)
     {
         _initializedTenants.Add(dbFileName);
-        var path = Path.Combine(StorageRootPath, dbFileName);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-
-        using var conn = new SqliteConnection($"Data Source={path}");
-        conn.Open();
-        conn.Execute("PRAGMA foreign_keys = ON;");
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS Usuarios (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                NombreUsuario TEXT NOT NULL UNIQUE,
-                PasswordHash TEXT NOT NULL,
-                NombreCompleto TEXT,
-                Rol TEXT NOT NULL,
-                Activo INTEGER NOT NULL DEFAULT 1,
-                FechaCreacion TEXT NOT NULL,
-                UltimoAcceso TEXT,
-                Permisos TEXT
-            )
-            """);
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS Productos (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Nombre TEXT NOT NULL,
-                Precio REAL NOT NULL,
-                Stock INTEGER NOT NULL DEFAULT 0
-            )
-            """);
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS Caja (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                UsuarioId INTEGER NOT NULL,
-                Apertura TEXT NOT NULL,
-                Cierre TEXT,
-                SaldoInicial REAL NOT NULL,
-                SaldoFinal REAL NOT NULL DEFAULT 0,
-                Estado TEXT NOT NULL DEFAULT 'CERRADA'
-            )
-            """);
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS Facturas (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ClienteId INTEGER,
-                CajaId INTEGER NOT NULL,
-                Total REAL NOT NULL,
-                MetodoPago TEXT NOT NULL DEFAULT 'EFECTIVO',
-                Fecha TEXT NOT NULL,
-                Ncf TEXT,
-                UsuarioId INTEGER NOT NULL,
-                Estado TEXT NOT NULL DEFAULT 'Pagada'
-            )
-            """);
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS Ventas (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                FacturaId INTEGER,
-                ProductoId INTEGER NOT NULL,
-                CajaId INTEGER NOT NULL,
-                Cantidad INTEGER NOT NULL,
-                PrecioUnitario REAL NOT NULL,
-                Total REAL NOT NULL,
-                Fecha TEXT NOT NULL,
-                FOREIGN KEY(FacturaId) REFERENCES Facturas(Id) ON DELETE CASCADE
-            )
-            """);
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS Cotizaciones (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Cliente TEXT NOT NULL,
-                Fecha TEXT NOT NULL,
-                FechaVencimiento TEXT NOT NULL,
-                DescuentoPorcentaje REAL NOT NULL DEFAULT 0,
-                DescuentoMonto REAL NOT NULL DEFAULT 0,
-                Total REAL NOT NULL DEFAULT 0,
-                Estado TEXT NOT NULL DEFAULT 'Pendiente'
-            )
-            """);
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS DetallesCotizacion (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                CotizacionId INTEGER NOT NULL,
-                ProductoId INTEGER NOT NULL,
-                NombreProducto TEXT NOT NULL DEFAULT '',
-                Cantidad INTEGER NOT NULL,
-                PrecioUnitario REAL NOT NULL DEFAULT 0
-            )
-            """);
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS Configuracion (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Clave TEXT NOT NULL UNIQUE,
-                Valor TEXT NOT NULL
-            )
-            """);
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS Auditoria (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                UsuarioId INTEGER,
-                Usuario TEXT NOT NULL,
-                Rol TEXT NOT NULL,
-                Modulo TEXT NOT NULL,
-                Accion TEXT NOT NULL,
-                Detalle TEXT NOT NULL DEFAULT '',
-                FechaHora TEXT NOT NULL,
-                Equipo TEXT NOT NULL DEFAULT ''
-            )
-            """);
-
-        conn.Execute("CREATE INDEX IF NOT EXISTS IX_Auditoria_FechaHora ON Auditoria(FechaHora DESC)");
-        conn.Execute("CREATE INDEX IF NOT EXISTS IX_Auditoria_Modulo ON Auditoria(Modulo)");
-        conn.Execute("CREATE INDEX IF NOT EXISTS IX_Auditoria_Usuario ON Auditoria(Usuario)");
-        conn.Execute("CREATE INDEX IF NOT EXISTS IX_Ventas_Fecha ON Ventas(Fecha)");
-        conn.Execute("CREATE INDEX IF NOT EXISTS IX_Ventas_CajaId ON Ventas(CajaId)");
-        conn.Execute("CREATE INDEX IF NOT EXISTS IX_Caja_Estado_Id ON Caja(Estado, Id DESC)");
-        conn.Execute("CREATE INDEX IF NOT EXISTS IX_Productos_Nombre ON Productos(Nombre)");
-        conn.Execute("CREATE INDEX IF NOT EXISTS IX_Cotizaciones_Estado_Id ON Cotizaciones(Estado, Id DESC)");
-        conn.Execute("CREATE INDEX IF NOT EXISTS IX_Cotizaciones_Cliente ON Cotizaciones(Cliente)");
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS Gastos (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Concepto TEXT NOT NULL,
-                Monto REAL NOT NULL,
-                Fecha TEXT NOT NULL,
-                Categoria TEXT NOT NULL,
-                UsuarioId INTEGER
-            )
-            """);
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS Empleados (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Nombre TEXT NOT NULL,
-                Cargo TEXT,
-                Salario REAL NOT NULL DEFAULT 0,
-                FechaIngreso TEXT NOT NULL,
-                Activo INTEGER NOT NULL DEFAULT 1
-            )
-            """);
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS PagosNomina (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                EmpleadoId INTEGER NOT NULL,
-                Monto REAL NOT NULL,
-                FechaPago TEXT NOT NULL,
-                Periodo TEXT NOT NULL,
-                FOREIGN KEY(EmpleadoId) REFERENCES Empleados(Id)
-            )
-            """);
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS Clientes (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                Nombre TEXT NOT NULL,
-                Telefono TEXT,
-                Direccion TEXT,
-                Rnc TEXT
-            )
-            """);
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS MovimientosInventario (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ProductoId INTEGER NOT NULL,
-                Tipo TEXT NOT NULL,
-                Cantidad INTEGER NOT NULL,
-                Motivo TEXT NOT NULL,
-                Fecha TEXT NOT NULL,
-                UsuarioId INTEGER NOT NULL
-            )
-            """);
-
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS Combos (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ComboId INTEGER NOT NULL,
-                ProductoId INTEGER NOT NULL,
-                Cantidad INTEGER NOT NULL,
-                FOREIGN KEY(ComboId) REFERENCES Productos(Id),
-                FOREIGN KEY(ProductoId) REFERENCES Productos(Id)
-            )
-            """);
-
-        EnsureColumn(conn, "Productos", "CodigoBarras", "TEXT");
-        EnsureColumn(conn, "Ventas", "ClienteId", "INTEGER");
-        EnsureColumn(conn, "Ventas", "MetodoPago", "TEXT NOT NULL DEFAULT 'EFECTIVO'");
-        EnsureColumn(conn, "Ventas", "FacturaId", "INTEGER");
-        EnsureColumn(conn, "Cotizaciones", "ClienteId", "INTEGER");
-        EnsureColumn(conn, "Usuarios", "Permisos", "TEXT");
         
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS CuentasPorCobrar (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ClienteId INTEGER NOT NULL UNIQUE,
-                DeudaTotal REAL NOT NULL DEFAULT 0,
-                UltimaActualizacion TEXT NOT NULL,
-                FOREIGN KEY(ClienteId) REFERENCES Clientes(Id)
-            )
-            """);
+        var supabaseConnStr = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+        if (!string.IsNullOrEmpty(supabaseConnStr))
+        {
+            using var conn = new Npgsql.NpgsqlConnection(supabaseConnStr);
+            conn.Open();
+            var schemaName = dbFileName.Replace(".db", "").Replace("-", "_").ToLower();
+            using var schemaCmd = conn.CreateCommand();
+            schemaCmd.CommandText = $"CREATE SCHEMA IF NOT EXISTS {schemaName}; SET search_path TO {schemaName};";
+            schemaCmd.ExecuteNonQuery();
 
-        conn.Execute("""
-            CREATE TABLE IF NOT EXISTS PagosCuentas (
-                Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ClienteId INTEGER NOT NULL,
-                Monto REAL NOT NULL,
-                MetodoPago TEXT NOT NULL,
-                Referencia TEXT,
-                Fecha TEXT NOT NULL,
-                UsuarioId INTEGER NOT NULL,
-                FOREIGN KEY(ClienteId) REFERENCES Clientes(Id)
-            )
-            """);
+            // PostgreSQL tables definition
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Usuarios (
+                    Id SERIAL PRIMARY KEY,
+                    NombreUsuario VARCHAR(150) NOT NULL UNIQUE,
+                    PasswordHash TEXT NOT NULL,
+                    NombreCompleto TEXT,
+                    Rol VARCHAR(50) NOT NULL,
+                    Activo INTEGER NOT NULL DEFAULT 1,
+                    FechaCreacion TEXT NOT NULL,
+                    UltimoAcceso TEXT,
+                    Permisos TEXT
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Productos (
+                    Id SERIAL PRIMARY KEY,
+                    Nombre TEXT NOT NULL,
+                    Precio DOUBLE PRECISION NOT NULL,
+                    Stock INTEGER NOT NULL DEFAULT 0
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Caja (
+                    Id SERIAL PRIMARY KEY,
+                    UsuarioId INTEGER NOT NULL,
+                    Apertura TEXT NOT NULL,
+                    Cierre TEXT,
+                    SaldoInicial DOUBLE PRECISION NOT NULL,
+                    SaldoFinal DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    Estado VARCHAR(50) NOT NULL DEFAULT 'CERRADA'
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Facturas (
+                    Id SERIAL PRIMARY KEY,
+                    ClienteId INTEGER,
+                    CajaId INTEGER NOT NULL,
+                    Total DOUBLE PRECISION NOT NULL,
+                    MetodoPago VARCHAR(50) NOT NULL DEFAULT 'EFECTIVO',
+                    Fecha TEXT NOT NULL,
+                    Ncf TEXT,
+                    UsuarioId INTEGER NOT NULL,
+                    Estado VARCHAR(50) NOT NULL DEFAULT 'Pagada'
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Ventas (
+                    Id SERIAL PRIMARY KEY,
+                    FacturaId INTEGER,
+                    ProductoId INTEGER NOT NULL,
+                    CajaId INTEGER NOT NULL,
+                    Cantidad INTEGER NOT NULL,
+                    PrecioUnitario DOUBLE PRECISION NOT NULL,
+                    Total DOUBLE PRECISION NOT NULL,
+                    Fecha TEXT NOT NULL,
+                    FOREIGN KEY(FacturaId) REFERENCES Facturas(Id) ON DELETE CASCADE
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Cotizaciones (
+                    Id SERIAL PRIMARY KEY,
+                    Cliente TEXT NOT NULL,
+                    Fecha TEXT NOT NULL,
+                    FechaVencimiento TEXT NOT NULL,
+                    DescuentoPorcentaje DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    DescuentoMonto DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    Total DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    Estado VARCHAR(50) NOT NULL DEFAULT 'Pendiente'
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS DetallesCotizacion (
+                    Id SERIAL PRIMARY KEY,
+                    CotizacionId INTEGER NOT NULL,
+                    ProductoId INTEGER NOT NULL,
+                    NombreProducto TEXT NOT NULL DEFAULT '',
+                    Cantidad INTEGER NOT NULL,
+                    PrecioUnitario DOUBLE PRECISION NOT NULL DEFAULT 0
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Configuracion (
+                    Id SERIAL PRIMARY KEY,
+                    Clave VARCHAR(150) NOT NULL UNIQUE,
+                    Valor TEXT NOT NULL
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Auditoria (
+                    Id SERIAL PRIMARY KEY,
+                    UsuarioId INTEGER,
+                    Usuario VARCHAR(150) NOT NULL,
+                    Rol VARCHAR(50) NOT NULL,
+                    Modulo VARCHAR(100) NOT NULL,
+                    Accion VARCHAR(150) NOT NULL,
+                    Detalle TEXT NOT NULL DEFAULT '',
+                    FechaHora TEXT NOT NULL,
+                    Equipo VARCHAR(100) NOT NULL DEFAULT ''
+                );
+                """);
+
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Auditoria_FechaHora ON Auditoria(FechaHora DESC)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Auditoria_Modulo ON Auditoria(Modulo)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Auditoria_Usuario ON Auditoria(Usuario)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Ventas_Fecha ON Ventas(Fecha)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Ventas_CajaId ON Ventas(CajaId)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Caja_Estado_Id ON Caja(Estado, Id DESC)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Productos_Nombre ON Productos(Nombre)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Cotizaciones_Estado_Id ON Cotizaciones(Estado, Id DESC)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Cotizaciones_Cliente ON Cotizaciones(Cliente)");
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Gastos (
+                    Id SERIAL PRIMARY KEY,
+                    Concepto TEXT NOT NULL,
+                    Monto DOUBLE PRECISION NOT NULL,
+                    Fecha TEXT NOT NULL,
+                    Categoria VARCHAR(100) NOT NULL,
+                    UsuarioId INTEGER
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Empleados (
+                    Id SERIAL PRIMARY KEY,
+                    Nombre TEXT NOT NULL,
+                    Cargo VARCHAR(100),
+                    Salario DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    FechaIngreso TEXT NOT NULL,
+                    Activo INTEGER NOT NULL DEFAULT 1
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS PagosNomina (
+                    Id SERIAL PRIMARY KEY,
+                    EmpleadoId INTEGER NOT NULL,
+                    Monto DOUBLE PRECISION NOT NULL,
+                    FechaPago TEXT NOT NULL,
+                    Periodo VARCHAR(100) NOT NULL,
+                    FOREIGN KEY(EmpleadoId) REFERENCES Empleados(Id)
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Clientes (
+                    Id SERIAL PRIMARY KEY,
+                    Nombre TEXT NOT NULL,
+                    Telefono VARCHAR(50),
+                    Direccion TEXT,
+                    Rnc VARCHAR(50)
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS MovimientosInventario (
+                    Id SERIAL PRIMARY KEY,
+                    ProductoId INTEGER NOT NULL,
+                    Tipo VARCHAR(50) NOT NULL,
+                    Cantidad INTEGER NOT NULL,
+                    Motivo TEXT NOT NULL,
+                    Fecha TEXT NOT NULL,
+                    UsuarioId INTEGER NOT NULL
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Combos (
+                    Id SERIAL PRIMARY KEY,
+                    ComboId INTEGER NOT NULL,
+                    ProductoId INTEGER NOT NULL,
+                    Cantidad INTEGER NOT NULL,
+                    FOREIGN KEY(ComboId) REFERENCES Productos(Id),
+                    FOREIGN KEY(ProductoId) REFERENCES Productos(Id)
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS CuentasPorCobrar (
+                    Id SERIAL PRIMARY KEY,
+                    ClienteId INTEGER NOT NULL UNIQUE,
+                    DeudaTotal DOUBLE PRECISION NOT NULL DEFAULT 0,
+                    UltimaActualizacion TEXT NOT NULL,
+                    FOREIGN KEY(ClienteId) REFERENCES Clientes(Id)
+                );
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS PagosCuentas (
+                    Id SERIAL PRIMARY KEY,
+                    ClienteId INTEGER NOT NULL,
+                    Monto DOUBLE PRECISION NOT NULL,
+                    MetodoPago VARCHAR(50) NOT NULL,
+                    Referencia TEXT,
+                    Fecha TEXT NOT NULL,
+                    UsuarioId INTEGER NOT NULL,
+                    FOREIGN KEY(ClienteId) REFERENCES Clientes(Id)
+                );
+                """);
             
-        conn.Execute("CREATE INDEX IF NOT EXISTS IX_Productos_CodigoBarras ON Productos(CodigoBarras)");
-        conn.Execute("CREATE INDEX IF NOT EXISTS IX_Facturas_Fecha ON Facturas(Fecha)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Productos_CodigoBarras ON Productos(CodigoBarras)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Facturas_Fecha ON Facturas(Fecha)");
 
-        conn.Execute("DROP TABLE IF EXISTS Insumos");
+            EnsureSchema(conn, schemaName);
+            SeedDefaults(conn);
+        }
+        else
+        {
+            // SQLite logic
+            var path = Path.Combine(StorageRootPath, dbFileName);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
-        EnsureSchema(conn);
-        SeedDefaults(conn);
+            using var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path}");
+            conn.Open();
+            conn.Execute("PRAGMA foreign_keys = ON;");
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Usuarios (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    NombreUsuario TEXT NOT NULL UNIQUE,
+                    PasswordHash TEXT NOT NULL,
+                    NombreCompleto TEXT,
+                    Rol TEXT NOT NULL,
+                    Activo INTEGER NOT NULL DEFAULT 1,
+                    FechaCreacion TEXT NOT NULL,
+                    UltimoAcceso TEXT,
+                    Permisos TEXT
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Productos (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Nombre TEXT NOT NULL,
+                    Precio REAL NOT NULL,
+                    Stock INTEGER NOT NULL DEFAULT 0
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Caja (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    UsuarioId INTEGER NOT NULL,
+                    Apertura TEXT NOT NULL,
+                    Cierre TEXT,
+                    SaldoInicial REAL NOT NULL,
+                    SaldoFinal REAL NOT NULL DEFAULT 0,
+                    Estado TEXT NOT NULL DEFAULT 'CERRADA'
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Facturas (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ClienteId INTEGER,
+                    CajaId INTEGER NOT NULL,
+                    Total REAL NOT NULL,
+                    MetodoPago TEXT NOT NULL DEFAULT 'EFECTIVO',
+                    Fecha TEXT NOT NULL,
+                    Ncf TEXT,
+                    UsuarioId INTEGER NOT NULL,
+                    Estado TEXT NOT NULL DEFAULT 'Pagada'
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Ventas (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    FacturaId INTEGER,
+                    ProductoId INTEGER NOT NULL,
+                    CajaId INTEGER NOT NULL,
+                    Cantidad INTEGER NOT NULL,
+                    PrecioUnitario REAL NOT NULL,
+                    Total REAL NOT NULL,
+                    Fecha TEXT NOT NULL,
+                    FOREIGN KEY(FacturaId) REFERENCES Facturas(Id) ON DELETE CASCADE
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Cotizaciones (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Cliente TEXT NOT NULL,
+                    Fecha TEXT NOT NULL,
+                    FechaVencimiento TEXT NOT NULL,
+                    DescuentoPorcentaje REAL NOT NULL DEFAULT 0,
+                    DescuentoMonto REAL NOT NULL DEFAULT 0,
+                    Total REAL NOT NULL DEFAULT 0,
+                    Estado TEXT NOT NULL DEFAULT 'Pendiente'
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS DetallesCotizacion (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    CotizacionId INTEGER NOT NULL,
+                    ProductoId INTEGER NOT NULL,
+                    NombreProducto TEXT NOT NULL DEFAULT '',
+                    Cantidad INTEGER NOT NULL,
+                    PrecioUnitario REAL NOT NULL DEFAULT 0
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Configuracion (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Clave TEXT NOT NULL UNIQUE,
+                    Valor TEXT NOT NULL
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Auditoria (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    UsuarioId INTEGER,
+                    Usuario TEXT NOT NULL,
+                    Rol TEXT NOT NULL,
+                    Modulo TEXT NOT NULL,
+                    Accion TEXT NOT NULL,
+                    Detalle TEXT NOT NULL DEFAULT '',
+                    FechaHora TEXT NOT NULL,
+                    Equipo TEXT NOT NULL DEFAULT ''
+                )
+                """);
+
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Auditoria_FechaHora ON Auditoria(FechaHora DESC)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Auditoria_Modulo ON Auditoria(Modulo)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Auditoria_Usuario ON Auditoria(Usuario)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Ventas_Fecha ON Ventas(Fecha)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Ventas_CajaId ON Ventas(CajaId)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Caja_Estado_Id ON Caja(Estado, Id DESC)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Productos_Nombre ON Productos(Nombre)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Cotizaciones_Estado_Id ON Cotizaciones(Estado, Id DESC)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Cotizaciones_Cliente ON Cotizaciones(Cliente)");
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Gastos (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Concepto TEXT NOT NULL,
+                    Monto REAL NOT NULL,
+                    Fecha TEXT NOT NULL,
+                    Categoria TEXT NOT NULL,
+                    UsuarioId INTEGER
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Empleados (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Nombre TEXT NOT NULL,
+                    Cargo TEXT,
+                    Salario REAL NOT NULL DEFAULT 0,
+                    FechaIngreso TEXT NOT NULL,
+                    Activo INTEGER NOT NULL DEFAULT 1
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS PagosNomina (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    EmpleadoId INTEGER NOT NULL,
+                    Monto REAL NOT NULL,
+                    FechaPago TEXT NOT NULL,
+                    Periodo TEXT NOT NULL,
+                    FOREIGN KEY(EmpleadoId) REFERENCES Empleados(Id)
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Clientes (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Nombre TEXT NOT NULL,
+                    Telefono TEXT,
+                    Direccion TEXT,
+                    Rnc TEXT
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS MovimientosInventario (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ProductoId INTEGER NOT NULL,
+                    Tipo TEXT NOT NULL,
+                    Cantidad INTEGER NOT NULL,
+                    Motivo TEXT NOT NULL,
+                    Fecha TEXT NOT NULL,
+                    UsuarioId INTEGER NOT NULL
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS Combos (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ComboId INTEGER NOT NULL,
+                    ProductoId INTEGER NOT NULL,
+                    Cantidad INTEGER NOT NULL,
+                    FOREIGN KEY(ComboId) REFERENCES Productos(Id),
+                    FOREIGN KEY(ProductoId) REFERENCES Productos(Id)
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS CuentasPorCobrar (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ClienteId INTEGER NOT NULL UNIQUE,
+                    DeudaTotal REAL NOT NULL DEFAULT 0,
+                    UltimaActualizacion TEXT NOT NULL,
+                    FOREIGN KEY(ClienteId) REFERENCES Clientes(Id)
+                )
+                """);
+
+            conn.Execute("""
+                CREATE TABLE IF NOT EXISTS PagosCuentas (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ClienteId INTEGER NOT NULL,
+                    Monto REAL NOT NULL,
+                    MetodoPago TEXT NOT NULL,
+                    Referencia TEXT,
+                    Fecha TEXT NOT NULL,
+                    UsuarioId INTEGER NOT NULL,
+                    FOREIGN KEY(ClienteId) REFERENCES Clientes(Id)
+                )
+                """);
+            
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Productos_CodigoBarras ON Productos(CodigoBarras)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Facturas_Fecha ON Facturas(Fecha)");
+
+            conn.Execute("DROP TABLE IF EXISTS Insumos");
+
+            EnsureSchema(conn, "");
+            SeedDefaults(conn);
+        }
     }
 
-    internal static SqliteConnection OpenInternal()
+    internal static DbConnection OpenInternal()
     {
         var dbName = CurrentTenantDbName;
         if (!_initializedTenants.Contains(dbName))
@@ -307,10 +535,51 @@ public static class Db
             InitializeDatabaseSchema(dbName);
         }
 
-        var conn = new SqliteConnection(ConnString);
-        conn.Open();
-        conn.Execute("PRAGMA foreign_keys = ON;");
-        return conn;
+        var supabaseConnStr = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+        if (!string.IsNullOrEmpty(supabaseConnStr))
+        {
+            var conn = new Npgsql.NpgsqlConnection(supabaseConnStr);
+            conn.Open();
+            var schemaName = dbName.Replace(".db", "").Replace("-", "_").ToLower();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"CREATE SCHEMA IF NOT EXISTS {schemaName}; SET search_path TO {schemaName};";
+            cmd.ExecuteNonQuery();
+            return conn;
+        }
+        else
+        {
+            var conn = new Microsoft.Data.Sqlite.SqliteConnection(ConnString);
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "PRAGMA foreign_keys = ON;";
+            cmd.ExecuteNonQuery();
+            return conn;
+        }
+    }
+
+    public static DbConnection CreateConnection(string dbName)
+    {
+        var supabaseConnStr = Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING");
+        if (!string.IsNullOrEmpty(supabaseConnStr))
+        {
+            var conn = new Npgsql.NpgsqlConnection(supabaseConnStr);
+            conn.Open();
+            var schemaName = dbName.Replace(".db", "").Replace("-", "_").ToLower();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"CREATE SCHEMA IF NOT EXISTS {schemaName}; SET search_path TO {schemaName};";
+            cmd.ExecuteNonQuery();
+            return conn;
+        }
+        else
+        {
+            var path = Path.Combine(StorageRootPath, dbName);
+            var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path}");
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "PRAGMA foreign_keys = ON;";
+            cmd.ExecuteNonQuery();
+            return conn;
+        }
     }
 
     public static string HashPassword(string pwd)
@@ -418,8 +687,36 @@ public static class Db
 
         var maxRows = Math.Clamp(limite, 50, 2000);
 
-        return conn.Query<AuditoriaRegistro>(
-            """
+        string sql;
+        if (conn is Npgsql.NpgsqlConnection)
+        {
+            sql = """
+            SELECT
+                a.Id,
+                a.UsuarioId,
+                a.Usuario,
+                COALESCE(NULLIF(TRIM(u.NombreCompleto), ''), NULLIF(TRIM(uAlt.NombreCompleto), ''), '') AS NombreCompleto,
+                a.Rol,
+                a.Modulo,
+                a.Accion,
+                a.Detalle,
+                a.FechaHora,
+                a.Equipo
+            FROM Auditoria a
+            LEFT JOIN Usuarios u ON u.Id = a.UsuarioId
+            LEFT JOIN Usuarios uAlt ON uAlt.NombreUsuario = a.Usuario AND a.UsuarioId IS NULL
+            WHERE
+                (@modulo = '' OR a.Modulo = @modulo)
+                AND (@filtro = '' OR a.Usuario LIKE @like OR a.Rol LIKE @like OR a.Modulo LIKE @like OR a.Accion LIKE @like OR a.Detalle LIKE @like
+                    OR u.NombreCompleto LIKE @like OR uAlt.NombreCompleto LIKE @like)
+                AND a.FechaHora BETWEEN @desde AND @hasta
+            ORDER BY a.Id DESC
+            LIMIT @maxRows
+            """;
+        }
+        else
+        {
+            sql = """
             SELECT
                 a.Id,
                 a.UsuarioId,
@@ -441,16 +738,18 @@ public static class Db
                 AND datetime(a.FechaHora) BETWEEN datetime(@desde) AND datetime(@hasta)
             ORDER BY a.Id DESC
             LIMIT @maxRows
-            """,
-            new
-            {
-                modulo = moduloFiltro,
-                filtro = filtroNormalizado,
-                like,
-                desde = desde.ToString(DateTimeFormat),
-                hasta = hasta.ToString(DateTimeFormat),
-                maxRows
-            }).ToList();
+            """;
+        }
+
+        return conn.Query<AuditoriaRegistro>(sql, new
+        {
+            modulo = moduloFiltro,
+            filtro = filtroNormalizado,
+            like,
+            desde = desde.ToString(DateTimeFormat),
+            hasta = hasta.ToString(DateTimeFormat),
+            maxRows
+        }).ToList();
     }
 
     public static string GetProjectRootPath()
@@ -465,6 +764,10 @@ public static class Db
         try
         {
             using var conn = OpenInternal();
+            if (conn is Npgsql.NpgsqlConnection)
+            {
+                return defaultPath;
+            }
             var configured = conn.ExecuteScalar<string>("SELECT Valor FROM Configuracion WHERE Clave = @key", new { key = BackupFolderConfigKey }) ?? string.Empty;
             if (string.IsNullOrWhiteSpace(configured))
             {
@@ -487,8 +790,12 @@ public static class Db
 
     public static bool EnsureDailyBackup()
     {
-        var today = DateTime.Now.ToString(BackupDateFormat);
         using var conn = OpenInternal();
+        if (conn is Npgsql.NpgsqlConnection)
+        {
+            return false;
+        }
+        var today = DateTime.Now.ToString(BackupDateFormat);
         var ultimoBackup = conn.ExecuteScalar<string>("SELECT Valor FROM Configuracion WHERE Clave = 'ULTIMO_BACKUP_FECHA'") ?? string.Empty;
         if (string.Equals(ultimoBackup, today, StringComparison.Ordinal))
         {
@@ -501,70 +808,90 @@ public static class Db
 
     public static string CreateBackupNow()
     {
-        var backupFolder = GetBackupFolderPath();
-        Directory.CreateDirectory(backupFolder);
-
-        var backupPath = Path.Combine(backupFolder, $"{BackupFilePrefix}_{DateTime.Now:yyyyMMdd_HHmmss_fff}.db");
         using (var conn = OpenInternal())
         {
+            if (conn is Npgsql.NpgsqlConnection)
+            {
+                return "Supabase backups are managed automatically.";
+            }
+
+            var backupFolder = GetBackupFolderPath();
+            Directory.CreateDirectory(backupFolder);
+
+            var backupPath = Path.Combine(backupFolder, $"{BackupFilePrefix}_{DateTime.Now:yyyyMMdd_HHmmss_fff}.db");
             conn.Execute("PRAGMA busy_timeout = 5000;");
             var escapedPath = backupPath.Replace("'", "''");
             conn.Execute($"VACUUM INTO '{escapedPath}'");
-        }
 
-        var today = DateTime.Now.ToString(BackupDateFormat);
-        using (var conn = OpenInternal())
-        {
+            var today = DateTime.Now.ToString(BackupDateFormat);
             conn.Execute("INSERT INTO Configuracion (Clave, Valor) VALUES ('ULTIMO_BACKUP_FECHA', @today) ON CONFLICT(Clave) DO UPDATE SET Valor = excluded.Valor", new { today });
+            LimpiarBackupsAntiguos(backupFolder);
+            return backupPath;
         }
-        LimpiarBackupsAntiguos(backupFolder);
-        return backupPath;
     }
 
-    private static void EnsureSchema(SqliteConnection conn)
+    private static void EnsureSchema(DbConnection conn, string schemaName)
     {
-        EnsureColumn(conn, "Usuarios", "NombreCompleto", "TEXT");
-        EnsureColumn(conn, "Usuarios", "UltimoAcceso", "TEXT");
-        EnsureColumn(conn, "Usuarios", "FechaCreacion", "TEXT NOT NULL DEFAULT ''");
-        EnsureColumn(conn, "Cotizaciones", "Estado", "TEXT NOT NULL DEFAULT 'Pendiente'");
-        EnsureColumn(conn, "Cotizaciones", "Total", "REAL NOT NULL DEFAULT 0");
-        EnsureColumn(conn, "Cotizaciones", "FechaVencimiento", "TEXT NOT NULL DEFAULT ''");
-        EnsureColumn(conn, "Cotizaciones", "DescuentoPorcentaje", "REAL NOT NULL DEFAULT 0");
-        EnsureColumn(conn, "Cotizaciones", "DescuentoMonto", "REAL NOT NULL DEFAULT 0");
-        EnsureColumn(conn, "DetallesCotizacion", "PrecioUnitario", "REAL NOT NULL DEFAULT 0");
-        EnsureColumn(conn, "DetallesCotizacion", "NombreProducto", "TEXT NOT NULL DEFAULT ''");
-        EnsureColumn(conn, "Auditoria", "UsuarioId", "INTEGER");
-        EnsureColumn(conn, "Auditoria", "Usuario", "TEXT NOT NULL DEFAULT ''");
-        EnsureColumn(conn, "Auditoria", "Rol", "TEXT NOT NULL DEFAULT ''");
-        EnsureColumn(conn, "Auditoria", "Modulo", "TEXT NOT NULL DEFAULT ''");
-        EnsureColumn(conn, "Auditoria", "Accion", "TEXT NOT NULL DEFAULT ''");
-        EnsureColumn(conn, "Auditoria", "Detalle", "TEXT NOT NULL DEFAULT ''");
-        EnsureColumn(conn, "Auditoria", "FechaHora", "TEXT NOT NULL DEFAULT ''");
-        EnsureColumn(conn, "Auditoria", "Equipo", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn(conn, "Usuarios", "NombreCompleto", "TEXT", "TEXT", schemaName);
+        EnsureColumn(conn, "Usuarios", "UltimoAcceso", "TEXT", "TEXT", schemaName);
+        EnsureColumn(conn, "Usuarios", "FechaCreacion", "TEXT NOT NULL DEFAULT ''", "TEXT NOT NULL DEFAULT ''", schemaName);
+        EnsureColumn(conn, "Cotizaciones", "Estado", "TEXT NOT NULL DEFAULT 'Pendiente'", "VARCHAR(50) NOT NULL DEFAULT 'Pendiente'", schemaName);
+        EnsureColumn(conn, "Cotizaciones", "Total", "REAL NOT NULL DEFAULT 0", "DOUBLE PRECISION NOT NULL DEFAULT 0", schemaName);
+        EnsureColumn(conn, "Cotizaciones", "FechaVencimiento", "TEXT NOT NULL DEFAULT ''", "TEXT NOT NULL DEFAULT ''", schemaName);
+        EnsureColumn(conn, "Cotizaciones", "DescuentoPorcentaje", "REAL NOT NULL DEFAULT 0", "DOUBLE PRECISION NOT NULL DEFAULT 0", schemaName);
+        EnsureColumn(conn, "Cotizaciones", "DescuentoMonto", "REAL NOT NULL DEFAULT 0", "DOUBLE PRECISION NOT NULL DEFAULT 0", schemaName);
+        EnsureColumn(conn, "DetallesCotizacion", "PrecioUnitario", "REAL NOT NULL DEFAULT 0", "DOUBLE PRECISION NOT NULL DEFAULT 0", schemaName);
+        EnsureColumn(conn, "DetallesCotizacion", "NombreProducto", "TEXT NOT NULL DEFAULT ''", "TEXT NOT NULL DEFAULT ''", schemaName);
+        EnsureColumn(conn, "Auditoria", "UsuarioId", "INTEGER", "INTEGER", schemaName);
+        EnsureColumn(conn, "Auditoria", "Usuario", "TEXT NOT NULL DEFAULT ''", "VARCHAR(150) NOT NULL DEFAULT ''", schemaName);
+        EnsureColumn(conn, "Auditoria", "Rol", "TEXT NOT NULL DEFAULT ''", "VARCHAR(50) NOT NULL DEFAULT ''", schemaName);
+        EnsureColumn(conn, "Auditoria", "Modulo", "TEXT NOT NULL DEFAULT ''", "VARCHAR(100) NOT NULL DEFAULT ''", schemaName);
+        EnsureColumn(conn, "Auditoria", "Accion", "TEXT NOT NULL DEFAULT ''", "VARCHAR(150) NOT NULL DEFAULT ''", schemaName);
+        EnsureColumn(conn, "Auditoria", "Detalle", "TEXT NOT NULL DEFAULT ''", "TEXT NOT NULL DEFAULT ''", schemaName);
+        EnsureColumn(conn, "Auditoria", "FechaHora", "TEXT NOT NULL DEFAULT ''", "TEXT NOT NULL DEFAULT ''", schemaName);
+        EnsureColumn(conn, "Auditoria", "Equipo", "TEXT NOT NULL DEFAULT ''", "VARCHAR(100) NOT NULL DEFAULT ''", schemaName);
 
-        conn.Execute("UPDATE Cotizaciones SET FechaVencimiento = COALESCE(NULLIF(FechaVencimiento, ''), datetime(Fecha, '+7 days'))");
+        EnsureColumn(conn, "Productos", "CodigoBarras", "TEXT", "TEXT", schemaName);
+        EnsureColumn(conn, "Ventas", "ClienteId", "INTEGER", "INTEGER", schemaName);
+        EnsureColumn(conn, "Ventas", "MetodoPago", "TEXT NOT NULL DEFAULT 'EFECTIVO'", "VARCHAR(50) NOT NULL DEFAULT 'EFECTIVO'", schemaName);
+        EnsureColumn(conn, "Ventas", "FacturaId", "INTEGER", "INTEGER", schemaName);
+        EnsureColumn(conn, "Cotizaciones", "ClienteId", "INTEGER", "INTEGER", schemaName);
+        EnsureColumn(conn, "Usuarios", "Permisos", "TEXT", "TEXT", schemaName);
+        
+        if (conn is Npgsql.NpgsqlConnection)
+        {
+            conn.Execute("UPDATE Cotizaciones SET FechaVencimiento = COALESCE(NULLIF(FechaVencimiento, ''), (Fecha::timestamp + interval '7 days')::text) WHERE FechaVencimiento IS NULL OR FechaVencimiento = ''");
+        }
+        else
+        {
+            conn.Execute("UPDATE Cotizaciones SET FechaVencimiento = COALESCE(NULLIF(FechaVencimiento, ''), datetime(Fecha, '+7 days'))");
+        }
     }
 
-    private static void EnsureColumn(SqliteConnection conn, string table, string column, string definition)
+    private static void EnsureColumn(DbConnection conn, string table, string column, string sqliteDefinition, string postgresDefinition, string schemaName)
     {
-        var schema = conn.Query<TableInfoRow>($"PRAGMA table_info({table})").ToList();
-        if (schema.Count == 0)
+        bool columnExists = false;
+        if (conn is Npgsql.NpgsqlConnection)
         {
-            return;
+            var count = conn.ExecuteScalar<int>(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE LOWER(table_name) = LOWER(@table) AND LOWER(column_name) = LOWER(@column) AND LOWER(table_schema) = LOWER(@schemaName)",
+                new { table, column, schemaName });
+            columnExists = count > 0;
+        }
+        else
+        {
+            var schema = conn.Query<TableInfoRow>($"PRAGMA table_info({table})").ToList();
+            columnExists = schema.Any(item => string.Equals(item.name, column, StringComparison.OrdinalIgnoreCase));
         }
 
-        foreach (var item in schema)
+        if (!columnExists)
         {
-            if (string.Equals(item.name, column, StringComparison.OrdinalIgnoreCase))
-            {
-                return;
-            }
+            var def = conn is Npgsql.NpgsqlConnection ? postgresDefinition : sqliteDefinition;
+            conn.Execute($"ALTER TABLE {table} ADD COLUMN {column} {def}");
         }
-
-        conn.Execute($"ALTER TABLE {table} ADD COLUMN {column} {definition}");
     }
 
-    private static void SeedDefaults(SqliteConnection conn)
+    private static void SeedDefaults(DbConnection conn)
     {
         var now = DateTime.Now.ToString(DateTimeFormat);
 
@@ -681,7 +1008,7 @@ public static class Db
         }
     }
 
-    private static void EnsureConfig(SqliteConnection conn, string key, string value)
+    private static void EnsureConfig(DbConnection conn, string key, string value)
     {
         if (conn.ExecuteScalar<int>("SELECT COUNT(*) FROM Configuracion WHERE Clave = @key", new { key }) == 0)
         {
