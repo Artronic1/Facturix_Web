@@ -293,10 +293,11 @@ public static class Db
                 );
                 """);
             
+            EnsureSchema(conn, schemaName);
+
             conn.Execute("CREATE INDEX IF NOT EXISTS IX_Productos_CodigoBarras ON Productos(CodigoBarras)");
             conn.Execute("CREATE INDEX IF NOT EXISTS IX_Facturas_Fecha ON Facturas(Fecha)");
 
-            EnsureSchema(conn, schemaName);
             SeedDefaults(conn);
         }
         else
@@ -517,12 +518,13 @@ public static class Db
                 )
                 """);
             
-            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Productos_CodigoBarras ON Productos(CodigoBarras)");
-            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Facturas_Fecha ON Facturas(Fecha)");
-
             conn.Execute("DROP TABLE IF EXISTS Insumos");
 
             EnsureSchema(conn, "");
+
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Productos_CodigoBarras ON Productos(CodigoBarras)");
+            conn.Execute("CREATE INDEX IF NOT EXISTS IX_Facturas_Fecha ON Facturas(Fecha)");
+
             SeedDefaults(conn);
         }
     }
