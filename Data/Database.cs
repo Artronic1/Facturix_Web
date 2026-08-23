@@ -77,11 +77,12 @@ public static class Db
         var supabaseConnStr = FacturixWeb.Infrastructure.DbConnectionFactory.FormatConnectionString(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
         if (!string.IsNullOrEmpty(supabaseConnStr))
         {
-            using var conn = new Npgsql.NpgsqlConnection(supabaseConnStr);
-            conn.Open();
             var schemaName = dbFileName.Replace(".db", "").Replace("-", "_").ToLower();
+            var tenantConnStr = AppendSearchPath(supabaseConnStr, schemaName);
+            using var conn = new Npgsql.NpgsqlConnection(tenantConnStr);
+            conn.Open();
             using var schemaCmd = conn.CreateCommand();
-            schemaCmd.CommandText = $"CREATE SCHEMA IF NOT EXISTS {schemaName}; SET search_path TO {schemaName};";
+            schemaCmd.CommandText = $"CREATE SCHEMA IF NOT EXISTS {schemaName};";
             schemaCmd.ExecuteNonQuery();
 
             // PostgreSQL tables definition
@@ -540,12 +541,10 @@ public static class Db
         var supabaseConnStr = FacturixWeb.Infrastructure.DbConnectionFactory.FormatConnectionString(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
         if (!string.IsNullOrEmpty(supabaseConnStr))
         {
-            var conn = new Npgsql.NpgsqlConnection(supabaseConnStr);
-            conn.Open();
             var schemaName = dbName.Replace(".db", "").Replace("-", "_").ToLower();
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"CREATE SCHEMA IF NOT EXISTS {schemaName}; SET search_path TO {schemaName};";
-            cmd.ExecuteNonQuery();
+            var tenantConnStr = AppendSearchPath(supabaseConnStr, schemaName);
+            var conn = new Npgsql.NpgsqlConnection(tenantConnStr);
+            conn.Open();
             return conn;
         }
         else
@@ -564,12 +563,10 @@ public static class Db
         var supabaseConnStr = FacturixWeb.Infrastructure.DbConnectionFactory.FormatConnectionString(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
         if (!string.IsNullOrEmpty(supabaseConnStr))
         {
-            var conn = new Npgsql.NpgsqlConnection(supabaseConnStr);
-            conn.Open();
             var schemaName = dbName.Replace(".db", "").Replace("-", "_").ToLower();
-            using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"CREATE SCHEMA IF NOT EXISTS {schemaName}; SET search_path TO {schemaName};";
-            cmd.ExecuteNonQuery();
+            var tenantConnStr = AppendSearchPath(supabaseConnStr, schemaName);
+            var conn = new Npgsql.NpgsqlConnection(tenantConnStr);
+            conn.Open();
             return conn;
         }
         else
@@ -933,6 +930,16 @@ public static class Db
         }
 
         conn.Execute("DELETE FROM Configuracion WHERE Clave = 'ITBIS'");
+    }
+
+    /// <summary>
+    /// Appends the Search Path parameter to a PostgreSQL connection string so that
+    /// schema routing survives connection pooling (Supabase Session Pooler).
+    /// </summary>
+    private static string AppendSearchPath(string connStr, string schemaName)
+    {
+        if (!connStr.EndsWith(";")) connStr += ";";
+        return connStr + $"Search Path={schemaName};";
     }
 
     private static string HashPasswordLegacy(string pwd)

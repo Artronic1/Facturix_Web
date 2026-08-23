@@ -60,13 +60,15 @@ public sealed class DbConnectionFactory : IDbConnectionFactory
         var supabaseConnStr = FormatConnectionString(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
         if (!string.IsNullOrEmpty(supabaseConnStr))
         {
-            var conn = new Npgsql.NpgsqlConnection(supabaseConnStr);
+            var schemaName = dbName.Replace(".db", "").Replace("-", "_").ToLower();
+            if (!supabaseConnStr.EndsWith(";")) supabaseConnStr += ";";
+            var tenantConnStr = supabaseConnStr + $"Search Path={schemaName};";
+
+            var conn = new Npgsql.NpgsqlConnection(tenantConnStr);
             await conn.OpenAsync();
             
-            // Para PostgreSQL en Supabase, usamos esquemas para separar los inquilinos
-            var schemaName = dbName.Replace(".db", "").Replace("-", "_").ToLower();
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = $"CREATE SCHEMA IF NOT EXISTS {schemaName}; SET search_path TO {schemaName};";
+            cmd.CommandText = $"CREATE SCHEMA IF NOT EXISTS {schemaName};";
             await cmd.ExecuteNonQueryAsync();
             
             return conn;
