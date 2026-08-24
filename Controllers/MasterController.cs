@@ -215,12 +215,15 @@ public class MasterController : Controller
         using var masterConn = MasterDb.CreateConnection();
         masterConn.Open();
         
-        var empresa = masterConn.QueryFirstOrDefault("SELECT DbFileName, Nombre FROM Empresas WHERE Id = @id", new { id });
-        if (empresa == null)
+        var empresa = masterConn.QueryFirstOrDefault<EmpresaViewModel>("SELECT DbFileName, Nombre FROM Empresas WHERE Id = @id", new { id });
+        if (empresa == null || string.IsNullOrWhiteSpace(empresa.DbFileName))
         {
             TempData["Error"] = "Empresa no encontrada.";
             return RedirectToAction(nameof(Index));
         }
+
+        var dbFileName = empresa.DbFileName;
+        var nombreEmpresa = empresa.Nombre;
 
         using var tran = masterConn.BeginTransaction();
         try
@@ -229,7 +232,7 @@ public class MasterController : Controller
             masterConn.Execute("DELETE FROM Empresas WHERE Id = @id", new { id }, tran);
             if (masterConn is Npgsql.NpgsqlConnection)
             {
-                var schemaName = ((string)empresa.DbFileName).Replace(".db", "").Replace("-", "_").ToLower();
+                var schemaName = dbFileName.Replace(".db", "").Replace("-", "_").ToLower();
                 masterConn.Execute($"DROP SCHEMA IF EXISTS {schemaName} CASCADE;", null, tran);
             }
             tran.Commit();
@@ -242,7 +245,7 @@ public class MasterController : Controller
         }
 
         // Delete the database file from disk if local SQLite
-        var dbPath = Path.Combine(Db.StorageRootPath, (string)empresa.DbFileName);
+        var dbPath = Path.Combine(Db.StorageRootPath, dbFileName);
         if (System.IO.File.Exists(dbPath))
         {
             try
@@ -257,7 +260,7 @@ public class MasterController : Controller
             }
         }
 
-        TempData["Success"] = $"La empresa '{empresa.Nombre}' y todos sus datos han sido eliminados de forma permanente.";
+        TempData["Success"] = $"La empresa '{nombreEmpresa}' y todos sus datos han sido eliminados de forma permanente.";
         return RedirectToAction(nameof(Index));
     }
 

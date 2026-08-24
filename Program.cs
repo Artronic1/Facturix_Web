@@ -41,9 +41,16 @@ builder.Services.AddScoped<FacturixWeb.Infrastructure.ITenantProvider, FacturixW
 builder.Services.AddScoped<FacturixWeb.Infrastructure.IDbConnectionFactory, FacturixWeb.Infrastructure.DbConnectionFactory>();
 builder.Services.AddScoped<FacturixWeb.Services.IInventoryService, FacturixWeb.Services.InventoryService>();
 builder.Services.AddScoped<FacturixWeb.Services.ISalesService, FacturixWeb.Services.SalesService>();
+builder.Services.AddAntiforgery(options =>
+{
+    options.Cookie.Name = ".FacturixWeb.Antiforgery";
+    options.Cookie.Path = "/";
+    options.Cookie.SameSite = SameSiteMode.Lax;
+});
 builder.Services.AddSession(options =>
 {
     options.Cookie.Name = ".FacturixWeb.Session";
+    options.Cookie.Path = "/";
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
     options.IdleTimeout = TimeSpan.FromHours(12);
@@ -54,6 +61,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.LoginPath = "/Account/Login";
         options.AccessDeniedPath = "/Account/AccessDenied";
         options.Cookie.Name = ".FacturixWeb.Auth";
+        options.Cookie.Path = "/";
         options.SlidingExpiration = true;
         options.ExpireTimeSpan = TimeSpan.FromHours(12);
         options.Events.OnRedirectToLogin = context =>
