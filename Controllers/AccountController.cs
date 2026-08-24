@@ -33,10 +33,10 @@ public class AccountController : Controller
 
         var username = model.UserName.Trim();
         using var masterConn = MasterDb.CreateConnection();
-        masterConn.Open();
+        await masterConn.OpenAsync();
 
         // 1. Check SuperAdmin
-        var superAdminHash = masterConn.QueryFirstOrDefault<string>("SELECT PasswordHash FROM SuperAdmins WHERE NombreUsuario = @username", new { username });
+        var superAdminHash = await masterConn.QueryFirstOrDefaultAsync<string>("SELECT PasswordHash FROM SuperAdmins WHERE LOWER(NombreUsuario) = LOWER(@username)", new { username });
         if (!string.IsNullOrEmpty(superAdminHash) && MasterDb.VerifyPassword(model.Password, superAdminHash))
         {
             var adminClaims = new List<Claim>
@@ -63,7 +63,7 @@ public class AccountController : Controller
             INNER JOIN Empresas e ON u.EmpresaId = e.Id 
             WHERE LOWER(u.NombreUsuario) = LOWER(@username) AND e.Activa = 1";
             
-        var tenantDb = masterConn.QueryFirstOrDefault<string>(query, new { username });
+        var tenantDb = await masterConn.QueryFirstOrDefaultAsync<string>(query, new { username });
         if (string.IsNullOrEmpty(tenantDb))
         {
             ModelState.AddModelError(string.Empty, "Credenciales incorrectas o la empresa está deshabilitada.");
@@ -71,10 +71,10 @@ public class AccountController : Controller
         }
 
         // 3. Authenticate in Tenant DB
-        InventarioProVisual.Data.Db.InitializeDatabaseSchema(tenantDb);
+        Db.InitializeDatabaseSchema(tenantDb);
         using var tenantConn = Db.CreateConnection(tenantDb);
         
-        var user = tenantConn.QueryFirstOrDefault<Usuario>(
+        var user = await tenantConn.QueryFirstOrDefaultAsync<Usuario>(
             "SELECT * FROM Usuarios WHERE LOWER(NombreUsuario) = LOWER(@username) AND Activo = 1",
             new { username });
 
@@ -84,7 +84,7 @@ public class AccountController : Controller
             return View(model);
         }
 
-        tenantConn.Execute("UPDATE Usuarios SET UltimoAcceso = @fecha WHERE Id = @id", new { fecha = DateTime.Now.ToString(Db.DateTimeFormat), id = user.Id });
+        await tenantConn.ExecuteAsync("UPDATE Usuarios SET UltimoAcceso = @fecha WHERE Id = @id", new { fecha = DateTime.Now.ToString(Db.DateTimeFormat), id = user.Id });
 
         var claims = new List<Claim>
         {

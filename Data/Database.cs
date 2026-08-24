@@ -72,7 +72,14 @@ public static class Db
 
     public static void InitializeDatabaseSchema(string dbFileName)
     {
-        _initializedTenants.Add(dbFileName);
+        if (string.IsNullOrWhiteSpace(dbFileName)) return;
+        if (_initializedTenants.Contains(dbFileName)) return;
+
+        lock (_initializedTenants)
+        {
+            if (_initializedTenants.Contains(dbFileName)) return;
+            _initializedTenants.Add(dbFileName);
+        }
         
         var supabaseConnStr = FacturixWeb.Infrastructure.DbConnectionFactory.FormatConnectionString(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
         if (!string.IsNullOrEmpty(supabaseConnStr))
