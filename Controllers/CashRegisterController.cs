@@ -59,14 +59,16 @@ public class CashRegisterController : AppController
             return RedirectToAction(nameof(Index));
         }
 
+        var userId = CurrentUserId > 0 ? CurrentUserId : 1;
+
         await conn.ExecuteAsync(
             """
             INSERT INTO Caja (UsuarioId, Apertura, SaldoInicial, SaldoFinal, Estado)
             VALUES (@UsuarioId, @Fecha, @Monto, @Monto, 'ABIERTA')
             """,
-            new { UsuarioId = CurrentUserId, Fecha = DateTime.Now.ToString(Db.DateTimeFormat), Monto = initialAmount });
+            new { UsuarioId = userId, Fecha = DateTime.Now.ToString(Db.DateTimeFormat), Monto = initialAmount });
 
-        Db.RegistrarAuditoria(CurrentUserId, User.Identity?.Name ?? "", "Cajero", "Caja", "Apertura", $"Monto inicial RD${initialAmount:N2}");
+        Db.RegistrarAuditoria(userId, User.Identity?.Name ?? "", "Cajero", "Caja", "Apertura", $"Monto inicial RD${initialAmount:N2}");
         FlashSuccess("Caja abierta correctamente.");
         return RedirectToAction(nameof(Index));
     }
