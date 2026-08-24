@@ -21,7 +21,7 @@ public static class Db
     internal const string DateTimeFormat = "yyyy-MM-dd HH:mm:ss";
     private const string BackupDateFormat = "yyyy-MM-dd";
     private const int BackupRetentionDays = 30;
-    private const int PasswordIterations = 120000;
+    private const int PasswordIterations = 25000;
     private const string PasswordPrefix = "PBKDF2$SHA256";
     private const string BackupFolderConfigKey = "CARPETA_BACKUP";
     public const string LogoEmpresaIcoConfigKey = "LOGO_EMPRESA_ICO_BASE64";

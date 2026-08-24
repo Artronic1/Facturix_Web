@@ -72,19 +72,48 @@ public class AccountController : Controller
 
         // 3. Authenticate in Tenant DB
         Db.InitializeDatabaseSchema(tenantDb);
-        using var tenantConn = Db.CreateConnection(tenantDb);
-        
-        var user = await tenantConn.QueryFirstOrDefaultAsync<Usuario>(
-            "SELECT * FROM Usuarios WHERE LOWER(NombreUsuario) = LOWER(@username) AND Activo = 1",
-            new { username });
-
-        if (user is null || !Db.VerifyPassword(model.Password, user.PasswordHash))
+        Usuario? user = null;
+        DbConnection? tenantConnToClose = null;
+        try
         {
-            ModelState.AddModelError(string.Empty, "Credenciales incorrectas.");
-            return View(model);
-        }
+            DbConnection connForTenant;
+            if (masterConn is Npgsql.NpgsqlConnection)
+            {
+                connForTenant = masterConn;
+                var schemaName = tenantDb.Replace(".db", "").Replace("-", "_").ToLower();
+                user = await connForTenant.QueryFirstOrDefaultAsync<Usuario>(
+                    $"SELECT * FROM {schemaName}.Usuarios WHERE LOWER(NombreUsuario) = LOWER(@username) AND Activo = 1",
+                    new { username });
+            }
+            else
+            {
+                tenantConnToClose = Db.CreateConnection(tenantDb);
+                connForTenant = tenantConnToClose;
+                user = await connForTenant.QueryFirstOrDefaultAsync<Usuario>(
+                    "SELECT * FROM Usuarios WHERE LOWER(NombreUsuario) = LOWER(@username) AND Activo = 1",
+                    new { username });
+            }
 
-        await tenantConn.ExecuteAsync("UPDATE Usuarios SET UltimoAcceso = @fecha WHERE Id = @id", new { fecha = DateTime.Now.ToString(Db.DateTimeFormat), id = user.Id });
+            if (user is null || !Db.VerifyPassword(model.Password, user.PasswordHash))
+            {
+                ModelState.AddModelError(string.Empty, "Credenciales incorrectas.");
+                return View(model);
+            }
+
+            if (masterConn is Npgsql.NpgsqlConnection)
+            {
+                var schemaName = tenantDb.Replace(".db", "").Replace("-", "_").ToLower();
+                await connForTenant.ExecuteAsync($"UPDATE {schemaName}.Usuarios SET UltimoAcceso = @fecha WHERE Id = @id", new { fecha = DateTime.Now.ToString(Db.DateTimeFormat), id = user.Id });
+            }
+            else
+            {
+                await connForTenant.ExecuteAsync("UPDATE Usuarios SET UltimoAcceso = @fecha WHERE Id = @id", new { fecha = DateTime.Now.ToString(Db.DateTimeFormat), id = user.Id });
+            }
+        }
+        finally
+        {
+            tenantConnToClose?.Dispose();
+        }
 
         var claims = new List<Claim>
         {

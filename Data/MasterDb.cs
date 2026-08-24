@@ -19,7 +19,7 @@ public static class MasterDb
     private const string MasterPass = "!Maxis01";
     
     // Hash parameters matching Database.cs
-    private const int PasswordIterations = 120000;
+    private const int PasswordIterations = 25000;
     private const string PasswordPrefix = "PBKDF2$SHA256";
 
     public static DbConnection CreateConnection()
