@@ -53,7 +53,10 @@ public static class MasterDb
                     Nombre TEXT NOT NULL,
                     Activa INTEGER NOT NULL DEFAULT 1,
                     DbFileName TEXT NOT NULL UNIQUE,
-                    FechaRegistro TEXT NOT NULL
+                    FechaRegistro TEXT NOT NULL,
+                    Rnc TEXT DEFAULT '',
+                    Telefono TEXT DEFAULT '',
+                    Direccion TEXT DEFAULT ''
                 );
 
                 CREATE TABLE IF NOT EXISTS UsuariosGlobales (
@@ -81,7 +84,10 @@ public static class MasterDb
                     Nombre TEXT NOT NULL,
                     Activa INTEGER NOT NULL DEFAULT 1,
                     DbFileName TEXT NOT NULL UNIQUE,
-                    FechaRegistro TEXT NOT NULL
+                    FechaRegistro TEXT NOT NULL,
+                    Rnc TEXT DEFAULT '',
+                    Telefono TEXT DEFAULT '',
+                    Direccion TEXT DEFAULT ''
                 );
 
                 CREATE TABLE IF NOT EXISTS UsuariosGlobales (
@@ -99,6 +105,8 @@ public static class MasterDb
                 );
                 """);
         }
+
+        EnsureMasterSchema(conn);
 
         // Ensure SuperAdmin exists
         var exists = conn.ExecuteScalar<int>("SELECT COUNT(*) FROM SuperAdmins WHERE NombreUsuario = @user", new { user = MasterUser });
@@ -142,6 +150,25 @@ public static class MasterDb
                 }
             }
         }
+    }
+
+    private static void EnsureMasterSchema(DbConnection conn)
+    {
+        try
+        {
+            conn.Execute("ALTER TABLE Empresas ADD COLUMN Rnc TEXT DEFAULT ''");
+        }
+        catch { }
+        try
+        {
+            conn.Execute("ALTER TABLE Empresas ADD COLUMN Telefono TEXT DEFAULT ''");
+        }
+        catch { }
+        try
+        {
+            conn.Execute("ALTER TABLE Empresas ADD COLUMN Direccion TEXT DEFAULT ''");
+        }
+        catch { }
     }
 
     public static string HashPassword(string password)

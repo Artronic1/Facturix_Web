@@ -70,14 +70,14 @@ public sealed class ReportsController : AppController
         var items = await conn.QueryAsync<ReporteVentaDiaViewModel>(
             """
             SELECT
-                date(Fecha) AS Fecha,
+                SUBSTR(Fecha, 1, 10) AS Fecha,
                 CAST(COALESCE(SUM(Total), 0) AS REAL) AS TotalVendido,
                 CAST(COALESCE(SUM(Cantidad), 0) AS INTEGER) AS UnidadesVendidas,
                 COUNT(*) AS NumeroVentas
             FROM Ventas
-            WHERE date(Fecha) BETWEEN @desde AND @hasta
-            GROUP BY date(Fecha)
-            ORDER BY date(Fecha) DESC
+            WHERE SUBSTR(Fecha, 1, 10) BETWEEN @desde AND @hasta
+            GROUP BY SUBSTR(Fecha, 1, 10)
+            ORDER BY SUBSTR(Fecha, 1, 10) DESC
             """,
             new { desde = desde.ToString("yyyy-MM-dd"), hasta = hasta.ToString("yyyy-MM-dd") });
 

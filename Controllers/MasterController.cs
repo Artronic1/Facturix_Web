@@ -16,31 +16,12 @@ public class MasterController : Controller
         using var conn = MasterDb.CreateConnection();
         conn.Open();
         var query = @"
-            SELECT e.*, u.NombreUsuario as AdminUser
+            SELECT e.Id, e.Nombre, e.DbFileName, e.FechaRegistro, e.Activa, e.Rnc, e.Telefono, e.Direccion, u.NombreUsuario as AdminUser
             FROM Empresas e
             LEFT JOIN UsuariosGlobales u ON e.Id = u.EmpresaId
             ORDER BY e.Id DESC";
             
         var empresas = conn.Query<EmpresaViewModel>(query).ToList();
-        
-        foreach (var emp in empresas)
-        {
-            try
-            {
-                var path = Path.Combine(Db.StorageRootPath, emp.DbFileName);
-                var supabaseActive = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SUPABASE_CONNECTION_STRING"));
-                if (supabaseActive || System.IO.File.Exists(path))
-                {
-                    using var tConn = Db.CreateConnection(emp.DbFileName);
-                    var configs = tConn.Query("SELECT Clave, Valor FROM Configuracion").ToDictionary(row => (string)row.Clave, row => (string)row.Valor);
-                    emp.Rnc = configs.GetValueOrDefault("RNC", "");
-                    emp.Telefono = configs.GetValueOrDefault("TELEFONO", "");
-                    emp.Direccion = configs.GetValueOrDefault("DIRECCION", "");
-                }
-            }
-            catch { /* Skip if DB locked or unreadable temporarily */ }
-        }
-        
         return View(empresas);
     }
     
@@ -82,22 +63,22 @@ public class MasterController : Controller
             if (masterConn is Npgsql.NpgsqlConnection)
             {
                 empresaId = masterConn.ExecuteScalar<int>(
-                    "INSERT INTO Empresas (Nombre, Activa, DbFileName, FechaRegistro) VALUES (@nombreEmpresa, 1, @dbFileName, @fecha) RETURNING Id", 
-                    new { nombreEmpresa, dbFileName, fecha }, tran);
+                    "INSERT INTO Empresas (Nombre, Activa, DbFileName, FechaRegistro, Rnc, Telefono, Direccion) VALUES (@nombreEmpresa, 1, @dbFileName, @fecha, @rnc, @telefono, @direccion) RETURNING Id", 
+                    new { nombreEmpresa, dbFileName, fecha, rnc, telefono, direccion }, tran);
             }
             else
             {
-                masterConn.Execute("INSERT INTO Empresas (Nombre, Activa, DbFileName, FechaRegistro) VALUES (@nombreEmpresa, 1, @dbFileName, @fecha)", new { nombreEmpresa, dbFileName, fecha }, tran);
+                masterConn.Execute("INSERT INTO Empresas (Nombre, Activa, DbFileName, FechaRegistro, Rnc, Telefono, Direccion) VALUES (@nombreEmpresa, 1, @dbFileName, @fecha, @rnc, @telefono, @direccion)", new { nombreEmpresa, dbFileName, fecha, rnc, telefono, direccion }, tran);
                 empresaId = masterConn.ExecuteScalar<int>("SELECT last_insert_rowid()", null, tran);
             }
             
             masterConn.Execute("INSERT INTO UsuariosGlobales (NombreUsuario, DbFileName, EmpresaId) VALUES (@adminUser, @dbFileName, @empresaId)", new { adminUser, dbFileName, empresaId }, tran);
             tran.Commit();
         }
-        catch
+        catch (Exception ex)
         {
             tran.Rollback();
-            TempData["Error"] = "Hubo un error registrando la empresa en la base maestra.";
+            TempData["Error"] = $"Hubo un error registrando la empresa en la base maestra: {ex.Message}";
             return RedirectToAction(nameof(Index));
         }
         
@@ -107,7 +88,7 @@ public class MasterController : Controller
         // Insert admin user into the newly created tenant DB
         using var tenantConn = Db.CreateConnection(dbFileName);
         var hash = Db.HashPassword(adminPass);
-        tenantConn.Execute("INSERT INTO Usuarios (NombreUsuario, PasswordHash, NombreCompleto, Rol, Activo, FechaCreacion, Permisos) VALUES (@adminUser, @hash, 'Administrador Principal', 'Admin', 1, @fecha, 'TODO')", new { adminUser, hash, fecha });
+        tenantConn.Execute("INSERT INTO Usuarios (NombreUsuario, PasswordHash, NombreCompleto, Rol, Activo, FechaCreacion, Permisos, DebeCambiarPassword) VALUES (@adminUser, @hash, 'Administrador Principal', 'Admin', 1, @fecha, 'TODO', 1)", new { adminUser, hash, fecha });
         
         // Inject business details into tenant configuration
         tenantConn.Execute("UPDATE Configuracion SET Valor = @nombreEmpresa WHERE Clave = 'NOMBRE_NEGOCIO'", new { nombreEmpresa });
@@ -175,7 +156,7 @@ public class MasterController : Controller
         using var tran = masterConn.BeginTransaction();
         try
         {
-            masterConn.Execute("UPDATE Empresas SET Nombre = @nuevoNombre WHERE Id = @id", new { nuevoNombre, id }, tran);
+            masterConn.Execute("UPDATE Empresas SET Nombre = @nuevoNombre, Rnc = @rnc, Telefono = @telefono, Direccion = @direccion WHERE Id = @id", new { nuevoNombre, rnc, telefono, direccion, id }, tran);
             
             if (!string.Equals(oldAdminUser, newAdminUser, StringComparison.OrdinalIgnoreCase))
             {
@@ -183,10 +164,10 @@ public class MasterController : Controller
             }
             tran.Commit();
         }
-        catch
+        catch (Exception ex)
         {
             tran.Rollback();
-            TempData["Error"] = "Hubo un error actualizando los datos de la empresa en la base maestra.";
+            TempData["Error"] = $"Hubo un error actualizando los datos de la empresa en la base maestra: {ex.Message}";
             return RedirectToAction(nameof(Index));
         }
 
@@ -207,7 +188,7 @@ public class MasterController : Controller
                 if (!string.IsNullOrWhiteSpace(newPassword))
                 {
                     var hash = Db.HashPassword(newPassword);
-                    tenantConn.Execute("UPDATE Usuarios SET PasswordHash = @hash WHERE NombreUsuario = @newAdminUser", new { hash, newAdminUser });
+                    tenantConn.Execute("UPDATE Usuarios SET PasswordHash = @hash, DebeCambiarPassword = 1 WHERE NombreUsuario = @newAdminUser", new { hash, newAdminUser });
                 }
 
                 // Actualizar configuración del negocio
@@ -249,24 +230,23 @@ public class MasterController : Controller
             if (masterConn is Npgsql.NpgsqlConnection)
             {
                 var schemaName = ((string)empresa.DbFileName).Replace(".db", "").Replace("-", "_").ToLower();
-                masterConn.Execute($"DROP SCHEMA IF EXISTS {schemaName} CASCADE;");
+                masterConn.Execute($"DROP SCHEMA IF EXISTS {schemaName} CASCADE;", null, tran);
             }
             tran.Commit();
         }
-        catch
+        catch (Exception ex)
         {
             tran.Rollback();
-            TempData["Error"] = "No se pudo eliminar el registro de la empresa.";
+            TempData["Error"] = $"No se pudo eliminar la empresa: {ex.Message}";
             return RedirectToAction(nameof(Index));
         }
 
-        // Delete the database file from disk
+        // Delete the database file from disk if local SQLite
         var dbPath = Path.Combine(Db.StorageRootPath, (string)empresa.DbFileName);
         if (System.IO.File.Exists(dbPath))
         {
             try
             {
-                // Force garbage collection in case the connection is lingering
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
                 System.IO.File.Delete(dbPath);

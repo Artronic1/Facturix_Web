@@ -20,8 +20,30 @@ public abstract class AppController : Controller
 
     public override void OnActionExecuting(ActionExecutingContext context)
     {
+        Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+        Response.Headers["Pragma"] = "no-cache";
+        Response.Headers["Expires"] = "0";
+
         ViewBag.CurrentUserName = CurrentFullName;
         ViewBag.CurrentRole = CurrentRole;
+
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            var mustChangeClaim = User.Claims.FirstOrDefault(c => c.Type == "MustChangePassword")?.Value;
+            if (string.Equals(mustChangeClaim, "true", StringComparison.OrdinalIgnoreCase))
+            {
+                var controllerName = context.RouteData.Values["controller"]?.ToString();
+                var actionName = context.RouteData.Values["action"]?.ToString();
+                if (!string.Equals(controllerName, "Account", StringComparison.OrdinalIgnoreCase) ||
+                    (!string.Equals(actionName, "CambiarPassword", StringComparison.OrdinalIgnoreCase) &&
+                     !string.Equals(actionName, "Logout", StringComparison.OrdinalIgnoreCase)))
+                {
+                    context.Result = new RedirectToActionResult("CambiarPassword", "Account", null);
+                    return;
+                }
+            }
+        }
+
         base.OnActionExecuting(context);
     }
 

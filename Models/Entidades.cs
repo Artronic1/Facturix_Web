@@ -13,6 +13,7 @@ public class Usuario
     public DateTime FechaCreacion { get; set; }
     public DateTime? UltimoAcceso { get; set; }
     public string Permisos { get; set; } = string.Empty;
+    public bool DebeCambiarPassword { get; set; } = false;
 }
 
 public class Producto

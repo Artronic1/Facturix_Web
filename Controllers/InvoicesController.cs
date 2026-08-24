@@ -37,11 +37,13 @@ public class InvoicesController : AppController
             
         if (!string.IsNullOrWhiteSpace(start) && DateTime.TryParse(start, out var startDate))
         {
-            query += " AND date(f.Fecha) >= date(@start)";
+            start = startDate.ToString("yyyy-MM-dd");
+            query += " AND SUBSTR(f.Fecha, 1, 10) >= @start";
         }
         if (!string.IsNullOrWhiteSpace(end) && DateTime.TryParse(end, out var endDate))
         {
-            query += " AND date(f.Fecha) <= date(@end)";
+            end = endDate.ToString("yyyy-MM-dd");
+            query += " AND SUBSTR(f.Fecha, 1, 10) <= @end";
         }
         
         query += " ORDER BY f.Id DESC LIMIT 100";

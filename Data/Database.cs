@@ -96,7 +96,8 @@ public static class Db
                     Activo INTEGER NOT NULL DEFAULT 1,
                     FechaCreacion TEXT NOT NULL,
                     UltimoAcceso TEXT,
-                    Permisos TEXT
+                    Permisos TEXT,
+                    DebeCambiarPassword INTEGER NOT NULL DEFAULT 0
                 );
                 """);
 
@@ -321,7 +322,8 @@ public static class Db
                     Activo INTEGER NOT NULL DEFAULT 1,
                     FechaCreacion TEXT NOT NULL,
                     UltimoAcceso TEXT,
-                    Permisos TEXT
+                    Permisos TEXT,
+                    DebeCambiarPassword INTEGER NOT NULL DEFAULT 0
                 )
                 """);
 
@@ -856,6 +858,7 @@ public static class Db
         EnsureColumn(conn, "Ventas", "FacturaId", "INTEGER", "INTEGER", schemaName);
         EnsureColumn(conn, "Cotizaciones", "ClienteId", "INTEGER", "INTEGER", schemaName);
         EnsureColumn(conn, "Usuarios", "Permisos", "TEXT", "TEXT", schemaName);
+        EnsureColumn(conn, "Usuarios", "DebeCambiarPassword", "INTEGER NOT NULL DEFAULT 0", "INTEGER NOT NULL DEFAULT 0", schemaName);
         
         if (conn is Npgsql.NpgsqlConnection)
         {

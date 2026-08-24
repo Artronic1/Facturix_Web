@@ -103,8 +103,8 @@ public sealed class UsersController : AppController
 
             await conn.ExecuteAsync(
                 """
-                INSERT INTO Usuarios (NombreUsuario, PasswordHash, NombreCompleto, Rol, Activo, FechaCreacion, Permisos)
-                VALUES (@NombreUsuario, @PasswordHash, @NombreCompleto, @Rol, @Activo, @FechaCreacion, @Permisos)
+                INSERT INTO Usuarios (NombreUsuario, PasswordHash, NombreCompleto, Rol, Activo, FechaCreacion, Permisos, DebeCambiarPassword)
+                VALUES (@NombreUsuario, @PasswordHash, @NombreCompleto, @Rol, @Activo, @FechaCreacion, @Permisos, 1)
                 """,
                 new
                 {
@@ -170,7 +170,8 @@ public sealed class UsersController : AppController
                         Rol = @Rol,
                         Activo = @Activo,
                         Permisos = @Permisos,
-                        PasswordHash = @PasswordHash
+                        PasswordHash = @PasswordHash,
+                        DebeCambiarPassword = 1
                     WHERE Id = @Id
                     """,
                     new
