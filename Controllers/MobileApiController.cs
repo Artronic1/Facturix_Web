@@ -73,20 +73,47 @@ public sealed class MobileApiController : ControllerBase
         }
 
         Db.InitializeDatabaseSchema(tenantDb);
-        using var tenantConn = Db.CreateConnection(tenantDb);
-
-        var user = await tenantConn.QueryFirstOrDefaultAsync<Usuario>(
-            "SELECT * FROM Usuarios WHERE LOWER(NombreUsuario) = LOWER(@username) AND Activo = 1",
-            new { username });
-
-        if (user is null || !Db.VerifyPassword(request.Password, user.PasswordHash))
+        Usuario? user = null;
+        DbConnection? tenantConnToClose = null;
+        try
         {
-            return Unauthorized(new MobileErrorResponse("Credenciales incorrectas."));
-        }
+            DbConnection connForTenant;
+            if (masterConn is Npgsql.NpgsqlConnection)
+            {
+                connForTenant = masterConn;
+                var schemaName = tenantDb.Replace(".db", "").Replace("-", "_").ToLower();
+                user = await connForTenant.QueryFirstOrDefaultAsync<Usuario>(
+                    $"SELECT * FROM {schemaName}.Usuarios WHERE LOWER(NombreUsuario) = LOWER(@username) AND Activo = 1",
+                    new { username });
+            }
+            else
+            {
+                tenantConnToClose = Db.CreateConnection(tenantDb);
+                connForTenant = tenantConnToClose;
+                user = await connForTenant.QueryFirstOrDefaultAsync<Usuario>(
+                    "SELECT * FROM Usuarios WHERE LOWER(NombreUsuario) = LOWER(@username) AND Activo = 1",
+                    new { username });
+            }
 
-        await tenantConn.ExecuteAsync(
-            "UPDATE Usuarios SET UltimoAcceso = @fecha WHERE Id = @id",
-            new { fecha = DateTime.Now.ToString(Db.DateTimeFormat), id = user.Id });
+            if (user is null || !Db.VerifyPassword(request.Password, user.PasswordHash))
+            {
+                return Unauthorized(new MobileErrorResponse("Credenciales incorrectas."));
+            }
+
+            if (masterConn is Npgsql.NpgsqlConnection)
+            {
+                var schemaName = tenantDb.Replace(".db", "").Replace("-", "_").ToLower();
+                await connForTenant.ExecuteAsync($"UPDATE {schemaName}.Usuarios SET UltimoAcceso = @fecha WHERE Id = @id", new { fecha = DateTime.Now.ToString(Db.DateTimeFormat), id = user.Id });
+            }
+            else
+            {
+                await connForTenant.ExecuteAsync("UPDATE Usuarios SET UltimoAcceso = @fecha WHERE Id = @id", new { fecha = DateTime.Now.ToString(Db.DateTimeFormat), id = user.Id });
+            }
+        }
+        finally
+        {
+            tenantConnToClose?.Dispose();
+        }
 
         var principalTenant = BuildPrincipal(
             user.Id.ToString(),
@@ -127,10 +154,36 @@ public sealed class MobileApiController : ControllerBase
         }
 
         using var conn = await _dbConnectionFactory.CreateConnectionAsync();
+        var todayStr = DateTime.Today.ToString("yyyy-MM-dd");
+
         var resumen = await conn.QueryFirstOrDefaultAsync<(double TotalVendido, long NumeroVentas)>(
-            "SELECT CAST(COALESCE(SUM(Total), 0) AS REAL), COUNT(*) FROM Ventas WHERE date(Fecha) = date('now', 'localtime')");
+            "SELECT CAST(COALESCE(SUM(Total), 0) AS REAL), COUNT(*) FROM Ventas WHERE SUBSTR(Fecha, 1, 10) = @todayStr",
+            new { todayStr });
         var gastosHoy = await conn.ExecuteScalarAsync<double>(
-            "SELECT CAST(COALESCE(SUM(Monto), 0) AS REAL) FROM Gastos WHERE date(Fecha) = date('now', 'localtime')");
+            "SELECT CAST(COALESCE(SUM(Monto), 0) AS REAL) FROM Gastos WHERE SUBSTR(Fecha, 1, 10) = @todayStr",
+            new { todayStr });
+
+        var last7Days = Enumerable.Range(0, 7)
+            .Select(i => DateTime.Today.AddDays(-6 + i).ToString("yyyy-MM-dd"))
+            .ToList();
+        var startDate = last7Days.First();
+
+        var ventasSemanaRows = await conn.QueryAsync<(string Fecha, double Total)>(
+            "SELECT SUBSTR(Fecha, 1, 10) AS Fecha, CAST(COALESCE(SUM(Total), 0) AS REAL) AS Total FROM Ventas WHERE SUBSTR(Fecha, 1, 10) >= @startDate GROUP BY SUBSTR(Fecha, 1, 10)",
+            new { startDate });
+        var ventasSemana = ventasSemanaRows.ToDictionary(x => x.Fecha, x => x.Total);
+
+        var gastosSemanaRows = await conn.QueryAsync<(string Fecha, double Total)>(
+            "SELECT SUBSTR(Fecha, 1, 10) AS Fecha, CAST(COALESCE(SUM(Monto), 0) AS REAL) AS Total FROM Gastos WHERE SUBSTR(Fecha, 1, 10) >= @startDate GROUP BY SUBSTR(Fecha, 1, 10)",
+            new { startDate });
+        var gastosSemana = gastosSemanaRows.ToDictionary(x => x.Fecha, x => x.Total);
+
+        var balanceSemanal = last7Days.Select(d => new BalanceDiarioViewModel
+        {
+            Fecha = d,
+            Ventas = ventasSemana.GetValueOrDefault(d, 0.0),
+            Gastos = gastosSemana.GetValueOrDefault(d, 0.0)
+        }).ToList();
 
         var model = new DashboardViewModel
         {
@@ -139,7 +192,7 @@ public sealed class MobileApiController : ControllerBase
             UtilidadHoy = resumen.TotalVendido - gastosHoy,
             TransaccionesHoy = resumen.NumeroVentas,
             ProductosActivos = await conn.ExecuteScalarAsync<long>("SELECT COUNT(*) FROM Productos"),
-            UnidadesVendidas = await conn.ExecuteScalarAsync<long>("SELECT COALESCE(SUM(Cantidad), 0) FROM Ventas WHERE date(Fecha) = date('now', 'localtime')"),
+            UnidadesVendidas = await conn.ExecuteScalarAsync<long>("SELECT COALESCE(SUM(Cantidad), 0) FROM Ventas WHERE SUBSTR(Fecha, 1, 10) = @todayStr", new { todayStr }),
             CajaAbierta = await conn.ExecuteScalarAsync<long>("SELECT COUNT(*) FROM Caja WHERE Estado = 'ABIERTA'") > 0,
             AlertasStock = (await conn.QueryAsync<ProductoAlertaViewModel>(
                 "SELECT Id, Nombre, Stock FROM Productos WHERE Stock < 5 ORDER BY Stock ASC, Nombre ASC LIMIT 20")).ToList(),
@@ -152,23 +205,7 @@ public sealed class MobileApiController : ControllerBase
                 ORDER BY Total DESC
                 LIMIT 6
                 """)).ToList(),
-            BalanceSemanal = (await conn.QueryAsync<BalanceDiarioViewModel>(
-                """
-                SELECT
-                    d.fecha AS Fecha,
-                    CAST(COALESCE((SELECT SUM(Total) FROM Ventas WHERE date(Fecha) = d.fecha), 0) AS REAL) AS Ventas,
-                    CAST(COALESCE((SELECT SUM(Monto) FROM Gastos WHERE date(Fecha) = d.fecha), 0) AS REAL) AS Gastos
-                FROM (
-                    SELECT date('now', '-6 days', 'localtime') AS fecha
-                    UNION SELECT date('now', '-5 days', 'localtime')
-                    UNION SELECT date('now', '-4 days', 'localtime')
-                    UNION SELECT date('now', '-3 days', 'localtime')
-                    UNION SELECT date('now', '-2 days', 'localtime')
-                    UNION SELECT date('now', '-1 days', 'localtime')
-                    UNION SELECT date('now', 'localtime')
-                ) d
-                ORDER BY d.fecha ASC
-                """)).ToList()
+            BalanceSemanal = balanceSemanal
         };
 
         return Ok(model);
@@ -488,19 +525,21 @@ public sealed class MobileApiController : ControllerBase
     public async Task<IActionResult> Reports()
     {
         using var conn = await _dbConnectionFactory.CreateConnectionAsync();
+        var startDate = DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd");
         var rows = (await conn.QueryAsync<ReporteVentaDiaViewModel>(
             """
             SELECT
-                date(Fecha) AS Fecha,
+                SUBSTR(Fecha, 1, 10) AS Fecha,
                 CAST(COALESCE(SUM(Total), 0) AS REAL) AS TotalVendido,
                 CAST(COALESCE(SUM(Cantidad), 0) AS INTEGER) AS UnidadesVendidas,
                 COUNT(*) AS NumeroVentas
             FROM Ventas
-            WHERE date(Fecha) >= date('now', '-30 days', 'localtime')
-            GROUP BY date(Fecha)
-            ORDER BY date(Fecha) DESC
+            WHERE SUBSTR(Fecha, 1, 10) >= @startDate
+            GROUP BY SUBSTR(Fecha, 1, 10)
+            ORDER BY SUBSTR(Fecha, 1, 10) DESC
             LIMIT 30
-            """)).ToList();
+            """,
+            new { startDate })).ToList();
 
         return Ok(rows);
     }
